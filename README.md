@@ -1,7 +1,7 @@
 # Wavebreaker Rush
 
-Arcade-Jetski-Rennen in der Korallenbucht, eine Stunde vor Sonnenuntergang.
-Three.js, WebGL, eine einzige HTML-Datei ohne Build-Schritt.
+Arcade-Jetski-Rennen in der Korallenbucht. Es fängt als goldene Stunde an und
+endet als Gewitter. Three.js, WebGL, eine einzige HTML-Datei ohne Build-Schritt.
 
 **Spielen:** https://madd1in.github.io/wavebreaker-rush/
 
@@ -17,6 +17,16 @@ Auftrieb, Nick- und Rollwinkel kommen aus der echten Wellennormale. Eine steil
 angefahrene Flanke wird zur Sprungrampe.
 
 In der Bucht ist außerdem was los.
+
+## Das Wetter dreht mitten im Rennen
+
+Vier Stufen, gekoppelt an den Rennfortschritt statt an die Uhr: **Goldene Stunde →
+Böen ziehen auf → Regen → Gewitter**. Jede Stufe hebt den Seegang (bis auf das
+1,8-fache), verdunkelt Himmel und Wasser, zieht die Sicht zu, dreht den Seitenwind auf
+und schaltet die Musik hoch. Im Gewitter zucken Blitze mit nachlaufendem Donner, der
+Regen fällt schräg, Gischt weht von den Kämmen und die See wirft dich von allein in
+die Luft. Der Rumpf verliert bei schwerer See spürbar Grip — im Sturm driftet es sich
+leichter, aber auch unfreiwilliger.
 
 ## Steuerung
 
@@ -52,6 +62,17 @@ Am Handy: Daumenpad links, Turbo/Hop/Bremse rechts, Gas läuft automatisch.
   Reichweite, feuert sie. Die Einschläge treffen selten, aber sie kosten Tempo.
 - **Delfine** — eskortieren den Führenden und springen mit.
 - **Papageien** — kreisen über der Bucht und tragen nichts zum Rennen bei.
+
+## Actionpunkte
+
+- **Schiffswrack** — liegt quer im Wasser, die Bruchstelle in der Mitte ist die
+  Durchfahrt. Spantenbogen über dem Kopf, Fetzen im Wind, links und rechts Rumpf.
+- **Felsentor** — dasselbe Prinzip aus Stein, enger.
+- **Holzrampen** auf Fasspontons an vier Stellen der Strecke.
+
+Beide Durchfahrten sind reine Lückenkollision: zwei Rundkollider links und rechts,
+dazwischen Platz. Kommt die KI in die Nähe eines Tors, peilt sie gezielt die Mitte an —
+sonst würden sich ihre beiden Ausweichimpulse gegenseitig aufheben.
 
 ## Technik
 
