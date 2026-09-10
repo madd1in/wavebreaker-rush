@@ -49,6 +49,9 @@ Am Handy: Daumenpad links, Turbo/Hop/Bremse rechts, Gas läuft automatisch.
 
 ## Fahrtechnik
 
+- **Wellenritt** — der Hang der Welle wirkt auf die Geschwindigkeit: bergab zieht es an,
+  bergauf bremst es. Auf schwerer See fährt man deshalb nicht geradeaus, sondern sucht
+  sich die abfallenden Flanken.
 - **Drift-Boost** — Heck kommen lassen und halten. Die sechs Segmente unter der
   Turboleiste laden in drei Stufen (blau, orange, rot). Lenkung lösen gibt den Schub frei.
 - **Windschatten** — dicht hinter einem Gegner bleiben. Weniger Widerstand, mehr Vortrieb.
@@ -79,6 +82,11 @@ Am Handy: Daumenpad links, Turbo/Hop/Bremse rechts, Gas läuft automatisch.
 Beide Durchfahrten sind reine Lückenkollision: zwei Rundkollider links und rechts,
 dazwischen Platz. Kommt die KI in die Nähe eines Tors, peilt sie gezielt die Mitte an —
 sonst würden sich ihre beiden Ausweichimpulse gegenseitig aufheben.
+
+Kollisionen lenken am Hindernis entlang, statt davor stehen zu bleiben: nur der Anteil
+der Geschwindigkeit senkrecht zur Wand geht verloren. Zusätzlich zieht eine
+Trichterhilfe in Tornähe seitlich zur Mitte. Beides zusammen verhindert das Verkeilen
+zwischen zwei Kollidern, das eine engere Lückenversion hatte.
 
 ## Technik
 

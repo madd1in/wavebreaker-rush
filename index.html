@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-<meta name="description" content="Arcade-Jetski-Rennen im Browser: schwere See, aufziehendes Gewitter mit Blitzen und Wasserhose, Wrack-Durchfahrt und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
+<meta name="description" content="Arcade-Jetski-Rennen im Browser: schwere See mit Surf-Physik, aufziehendes Gewitter, Wrack-Durchfahrt und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
 <meta name="theme-color" content="#03101a">
 <meta property="og:title" content="Wavebreaker Rush">
-<meta property="og:description" content="Arcade-Jetski-Rennen mit aufziehendem Gewitter. Three.js, WebGL, eine Datei.">
+<meta property="og:description" content="Arcade-Jetski-Rennen auf schwerer See. Three.js, WebGL, eine Datei.">
 <meta property="og:type" content="website">
 <title>Wavebreaker Rush</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -262,7 +262,7 @@ th.tm{text-align:right;padding-right:0}
   <div class="tips">
     <div class="tip"><b>DURCHS WRACK</b> &rarr; die Bruchstelle ist die Abk&uuml;rzung</div>
     <div class="tip"><b>&Uuml;BER DEN WAL</b> &rarr; der weiteste Sprung im Rennen</div>
-    <div class="tip"><b>STURMWELLEN</b> &rarr; im Gewitter fliegst du von allein</div>
+    <div class="tip"><b>WELLENRITT</b> bergab auf der Welle &rarr; Extra-Tempo</div>
     <div class="tip"><b>DRIFT</b> aufladen und loslassen &rarr; Schub</div>
     <div class="tip"><b>GROG</b> einsammeln &rarr; Turbo randvoll</div>
     <div class="tip"><b>ROLLE</b> in der Luft &rarr; Turbo zur&uuml;ck</div>
@@ -340,22 +340,22 @@ var STORE = 'wavebreaker.v1';
 var SWELL = 1.0;
 var WAVE_GLSL = [
 'float wv(vec2 p, float t, float sw){',
-'  float h = 2.05*sin(p.x*0.0168 + t*0.80);',
-'  h += 1.55*sin(p.y*0.0134 - t*0.64 + 1.7);',
-'  h += 0.82*sin((p.x+p.y)*0.0395 + t*1.22);',
-'  h += 0.48*sin((p.x-p.y)*0.0630 - t*1.72);',
-'  h += 0.21*sin(p.x*0.1620 + t*2.42);',
-'  h += 0.14*sin(p.y*0.2020 - t*2.92);',
+'  float h = 2.38*sin(p.x*0.0168 + t*0.80);',
+'  h += 1.80*sin(p.y*0.0134 - t*0.64 + 1.7);',
+'  h += 0.96*sin((p.x+p.y)*0.0395 + t*1.22);',
+'  h += 0.56*sin((p.x-p.y)*0.0630 - t*1.72);',
+'  h += 0.24*sin(p.x*0.1620 + t*2.42);',
+'  h += 0.16*sin(p.y*0.2020 - t*2.92);',
 '  return h * sw;',
 '}'].join('\n');
 
 function waveAt(x, z, t) {
-  return (2.05 * Math.sin(x * 0.0168 + t * 0.80)
-        + 1.55 * Math.sin(z * 0.0134 - t * 0.64 + 1.7)
-        + 0.82 * Math.sin((x + z) * 0.0395 + t * 1.22)
-        + 0.48 * Math.sin((x - z) * 0.0630 - t * 1.72)
-        + 0.21 * Math.sin(x * 0.1620 + t * 2.42)
-        + 0.14 * Math.sin(z * 0.2020 - t * 2.92)) * SWELL;
+  return (2.38 * Math.sin(x * 0.0168 + t * 0.80)
+        + 1.80 * Math.sin(z * 0.0134 - t * 0.64 + 1.7)
+        + 0.96 * Math.sin((x + z) * 0.0395 + t * 1.22)
+        + 0.56 * Math.sin((x - z) * 0.0630 - t * 1.72)
+        + 0.24 * Math.sin(x * 0.1620 + t * 2.42)
+        + 0.16 * Math.sin(z * 0.2020 - t * 2.92)) * SWELL;
 }
 var _n = new THREE.Vector3();
 function waveNormal(x, z, t) {
@@ -423,17 +423,17 @@ var brightMat = new THREE.ShaderMaterial({
     'float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }',
     'void main(){',
     '  vec3 c = texture2D(tScene, vUv).rgb;',
-    '  vec3 b = c * smoothstep(0.74, 1.06, lum(c));',
+    '  vec3 b = c * smoothstep(0.58, 1.0, lum(c));',
     '  if (uRay > 0.002) {',
     '    vec2 dir = (vUv - uSunUV) * 0.075;',
     '    vec2 uv = vUv; float w = 1.0; vec3 acc = vec3(0.0);',
     '    for (int i = 0; i < 12; i++) {',
     '      uv -= dir;',
     '      vec3 s = texture2D(tScene, uv).rgb;',
-    '      acc += s * smoothstep(0.78, 1.10, lum(s)) * w;',
+    '      acc += s * smoothstep(0.66, 1.0, lum(s)) * w;',
     '      w *= 0.90;',
     '    }',
-    '    b += acc * uRay * 0.075;',
+    '    b += acc * uRay * 0.13;',
     '  }',
     '  gl_FragColor = vec4(b, 1.0);',
     '}'
@@ -465,7 +465,7 @@ var blurH = blurMat(1, 0, rtA.texture);
 var blurV = blurMat(0, 1, rtB.texture);
 
 postUni.tBloom = { value: rtA.texture };
-postUni.uBloom = { value: 0.62 };
+postUni.uBloom = { value: 1.0 };
 
 var finalMat = new THREE.ShaderMaterial({
   uniforms: postUni, depthTest: false, depthWrite: false,
@@ -864,18 +864,18 @@ var passages = [];
   var wi = 122, wp = TRACK[wi], wt = TAN[wi], wr = rightOf(wt);
   var wg = new THREE.Group();
   for (var side = -1; side <= 1; side += 2) {
-    var hull = new THREE.Mesh(new THREE.BoxGeometry(15, 9.5, 8.5), plankM);
-    hull.position.set(side * 14, 1.2, 0);
+    var hull = new THREE.Mesh(new THREE.BoxGeometry(16, 9.5, 8.5), plankM);
+    hull.position.set(side * 17, 1.2, 0);
     hull.rotation.z = side * 0.30;
     hull.rotation.x = 0.1 * side;
     wg.add(hull);
-    var top = new THREE.Mesh(new THREE.BoxGeometry(13, 1.1, 8.8), algaeM);
-    top.position.set(side * 14.6, 5.8, 0);
+    var top = new THREE.Mesh(new THREE.BoxGeometry(14, 1.1, 8.8), algaeM);
+    top.position.set(side * 17.6, 5.8, 0);
     top.rotation.z = side * 0.30; wg.add(top);
     // gesplitterte Bruchkante zur Luecke hin
     for (var sp = 0; sp < 5; sp++) {
       var shard = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.2 + Math.random() * 3.4, 1.1), plankM);
-      shard.position.set(side * (7.4 + Math.random()), 3.6 + Math.random() * 2.4, -3.4 + sp * 1.7);
+      shard.position.set(side * (10.2 + Math.random()), 3.6 + Math.random() * 2.4, -3.4 + sp * 1.7);
       shard.rotation.z = side * (0.2 + Math.random() * 0.35);
       wg.add(shard);
     }
@@ -883,7 +883,7 @@ var passages = [];
   // Spantenbogen ueber der Durchfahrt
   for (var rb = 0; rb < 4; rb++) {
     var arc = Math.PI * (0.62 + rb * 0.08);
-    var rib = new THREE.Mesh(new THREE.TorusGeometry(12 - rb * 0.5, 0.44, 6, 14, arc), ribM);
+    var rib = new THREE.Mesh(new THREE.TorusGeometry(15 - rb * 0.5, 0.44, 6, 14, arc), ribM);
     rib.position.set(0, 0.4, -3.6 + rb * 2.4);
     rib.rotation.z = (Math.PI - arc) / 2;
     wg.add(rib);
@@ -899,30 +899,37 @@ var passages = [];
   wg.position.set(wp.x, 0, wp.z);
   wg.rotation.y = Math.atan2(wt.x, wt.z) + Math.PI / 2;   // quer zur Fahrtrichtung
   scene.add(wg);
+  // Kollider weit genug auseinander: freie Luecke rund 15 Einheiten
   for (side = -1; side <= 1; side += 2) {
-    rocks.push({ x: wp.x + wr.x * side * 11.5, z: wp.z + wr.z * side * 11.5, r: 6.0, o: null });
+    rocks.push({ x: wp.x + wr.x * side * 16, z: wp.z + wr.z * side * 16, r: 5.4, o: null });
   }
-  passages.push({ x: wp.x, z: wp.z, r: 7.5, cd: 0, name: 'WRACK', o: wg, sink: 0.5 });
+  passages.push({
+    x: wp.x, z: wp.z, r: 8.5, cd: 0, name: 'WRACK', o: wg, sink: 0.5,
+    rx: wr.x, rz: wr.z
+  });
 
   // --- Felsentor ---
   var ai = 384, ap = TRACK[ai], at = TAN[ai], ar = rightOf(at);
   var ag = new THREE.Group();
   for (side = -1; side <= 1; side += 2) {
     var pil = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 6.2, 22, 7), rockM);
-    pil.position.set(side * 10.5, 6, 0);
+    pil.position.set(side * 14, 6, 0);
     pil.rotation.z = -side * 0.09; ag.add(pil);
   }
-  var span = new THREE.Mesh(new THREE.TorusGeometry(10.5, 3.0, 7, 16, Math.PI), rockM);
+  var span = new THREE.Mesh(new THREE.TorusGeometry(14, 3.0, 7, 16, Math.PI), rockM);
   span.position.set(0, 15.5, 0); ag.add(span);
-  var moss = new THREE.Mesh(new THREE.TorusGeometry(10.5, 2.2, 6, 14, Math.PI * 0.5), algaeM);
+  var moss = new THREE.Mesh(new THREE.TorusGeometry(14, 2.2, 6, 14, Math.PI * 0.5), algaeM);
   moss.position.set(0, 15.5, 0.9); moss.rotation.z = Math.PI * 0.25; ag.add(moss);
   ag.position.set(ap.x, 0, ap.z);
   ag.rotation.y = Math.atan2(at.x, at.z) + Math.PI / 2;
   scene.add(ag);
   for (side = -1; side <= 1; side += 2) {
-    rocks.push({ x: ap.x + ar.x * side * 10.5, z: ap.z + ar.z * side * 10.5, r: 5.0, o: null });
+    rocks.push({ x: ap.x + ar.x * side * 14, z: ap.z + ar.z * side * 14, r: 4.6, o: null });
   }
-  passages.push({ x: ap.x, z: ap.z, r: 6.5, cd: 0, name: 'FELSENTOR', o: ag, sink: 0.15 });
+  passages.push({
+    x: ap.x, z: ap.z, r: 8.0, cd: 0, name: 'FELSENTOR', o: ag, sink: 0.15,
+    rx: ar.x, rz: ar.z
+  });
 })();
 
 // ---------- Grogfaesser -------------------------------------
@@ -1048,6 +1055,19 @@ function makeSki(cA, cB) {
   flame.rotation.x = Math.PI / 2; flame.position.set(0, 0.34, -2.5);
   flame.visible = false; g.add(flame);
 
+  // Bugfontaenen: zwei Flaechen, die mit dem Tempo aufgehen
+  var sheets = [];
+  for (s = -1; s <= 1; s += 2) {
+    var sh = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.0), new THREE.MeshBasicMaterial({
+      map: blobTex(0.9, 0.45), transparent: true, opacity: 0,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false
+    }));
+    sh.position.set(s * 1.0, 0.12, 0.5);
+    sh.rotation.set(-0.55, s * 0.55, s * 0.45);
+    g.add(sh); sheets.push(sh);
+  }
+  g.userData.sheets = sheets;
+
   // Fahrer
   var rider = new THREE.Group();
   var V = THREE.Vector3;
@@ -1078,6 +1098,8 @@ function makeSki(cA, cB) {
 }
 
 // ---------- Partikel: Gischt (additiv) + Schaum (weich) -----
+// Farbe der Gischt haengt am Wetter: abends warm, im Sturm kalt.
+var SPRAY_TINT = [0.98, 0.92, 0.82];
 function blobTex(a0, a1) {
   var cv = document.createElement('canvas'); cv.width = cv.height = 64;
   var x = cv.getContext('2d');
@@ -1109,7 +1131,9 @@ function makePS(count, size, blending, tex, opacity) {
       pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
       vel[i * 3] = vx; vel[i * 3 + 1] = vy; vel[i * 3 + 2] = vz;
       life[i] = lf; lmax[i] = lf;
-      tint[i * 3] = t ? t[0] : 0.92; tint[i * 3 + 1] = t ? t[1] : 0.98; tint[i * 3 + 2] = t ? t[2] : 1.0;
+      tint[i * 3] = t ? t[0] : SPRAY_TINT[0];
+      tint[i * 3 + 1] = t ? t[1] : SPRAY_TINT[1];
+      tint[i * 3 + 2] = t ? t[2] : SPRAY_TINT[2];
     },
     step: function (dt, grav) {
       for (var i = 0; i < count; i++) {
@@ -1133,6 +1157,65 @@ function makePS(count, size, blending, tex, opacity) {
 var PS_SPRAY = makePS(1100, 1.9, THREE.AdditiveBlending, blobTex(1, 0.6));
 var PS_FOAM = makePS(700, 4.4, THREE.NormalBlending, blobTex(0.5, 0.24), 0.7);
 
+// ---------- Kielwasser als Band auf der Wasseroberflaeche ----
+var WAKE_N = 46, WAKE_LIFE = 1.8;
+function makeWake() {
+  var pos = new Float32Array(WAKE_N * 6), col = new Float32Array(WAKE_N * 6);
+  var idx = [];
+  for (var i = 0; i < WAKE_N - 1; i++) {
+    var a = i * 2;
+    idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(idx);
+  var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.5,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+    side: THREE.DoubleSide, fog: false
+  }));
+  m.frustumCulled = false;
+  m.visible = false;
+  scene.add(m);
+  return { o: m, geo: geo, pos: pos, col: col, pts: [] };
+}
+function updateWake(w, r, dt, t) {
+  var pts = w.pts, i;
+  for (i = 0; i < pts.length; i++) pts[i].age += dt;
+  while (pts.length && pts[pts.length - 1].age > WAKE_LIFE) pts.pop();
+  if (!r.air && Math.abs(r.vf) > 8) {
+    var dx0 = pts.length ? r.pos.x - pts[0].x : 99;
+    var dz0 = pts.length ? r.pos.z - pts[0].z : 99;
+    if (dx0 * dx0 + dz0 * dz0 > 2.8) {
+      pts.unshift({ x: r.pos.x, z: r.pos.z, age: 0, w: 1.1 + Math.abs(r.vf) * 0.022 });
+      if (pts.length > WAKE_N) pts.pop();
+    }
+  }
+  if (pts.length < 3) { w.o.visible = false; return; }
+  w.o.visible = true;
+  var pos = w.pos, col = w.col, last = pts.length - 1;
+  for (i = 0; i < WAKE_N; i++) {
+    var k = i < pts.length ? i : last;
+    var p = pts[k];
+    var a = pts[Math.max(0, k - 1)], b = pts[Math.min(last, k + 1)];
+    var dx = b.x - a.x, dz = b.z - a.z;
+    var L = Math.sqrt(dx * dx + dz * dz) || 1;
+    var lx = -dz / L, lz = dx / L;
+    var hw = p.w + p.age * 2.9;
+    var y = waveAt(p.x, p.z, t) + 0.16;
+    var f = Math.max(0, 1 - p.age / WAKE_LIFE);
+    var c = f * f * 0.8 * (i < pts.length ? 1 : 0);
+    var o = i * 6;
+    pos[o] = p.x - lx * hw; pos[o + 1] = y; pos[o + 2] = p.z - lz * hw;
+    pos[o + 3] = p.x + lx * hw; pos[o + 4] = y; pos[o + 5] = p.z + lz * hw;
+    col[o] = c * SPRAY_TINT[0]; col[o + 1] = c * SPRAY_TINT[1]; col[o + 2] = c * SPRAY_TINT[2];
+    col[o + 3] = col[o]; col[o + 4] = col[o + 1]; col[o + 5] = col[o + 2];
+  }
+  w.geo.attributes.position.needsUpdate = true;
+  w.geo.attributes.color.needsUpdate = true;
+}
+
 // ---------- Fahrer ------------------------------------------
 var RACERS = [], player = null;
 var SKINS = [
@@ -1150,9 +1233,10 @@ function makeRacer(i) {
     name: sk.n, colA: sk.a, isPlayer: i === 0,
     mesh: makeSki(sk.a, sk.b),
     shadow: new THREE.Mesh(shadowGeo, shadowMat.clone()),
+    wake: makeWake(),
     pos: new THREE.Vector3(), vel: new THREE.Vector3(),
     yaw: 0, vy: 0, vf: 0, air: false, airRoll: 0, airT: 0, hopCd: 0,
-    climb: 0, lastGround: null, exh: 0, octoCd: 0,
+    climb: 0, lastGround: null, exh: 0, octoCd: 0, surfT: 0, flyCd: 0,
     lean: 0, pitch: 0, roll: 0, boost: 100, boosting: false, mini: 0,
     drift: 0, driftDir: 0, drifts: 0, draft: 0,
     idx: 0, lap: 1, half: false, prog: 0, capMul: 1,
@@ -1172,11 +1256,12 @@ function resetRacers() {
     r.pos.y = waveAt(r.pos.x, r.pos.z, 0) + HOVER;
     r.yaw = Math.atan2(t0.x, t0.z);
     r.vel.set(0, 0, 0); r.vf = 0; r.vy = 0; r.air = false; r.airRoll = 0; r.airT = 0;
-    r.climb = 0; r.lastGround = null; r.exh = 0; r.octoCd = 0;
+    r.climb = 0; r.lastGround = null; r.exh = 0; r.octoCd = 0; r.surfT = 0; r.flyCd = 0;
     r.boost = 100; r.boosting = false; r.mini = 0; r.drift = 0; r.drifts = 0; r.draft = 0;
     r.lap = 1; r.half = false; r.lapTimes = []; r.best = 0; r.finished = false; r.finishT = 0;
     r.topV = 0; r.tricks = 0; r.lapStart = 0; r.hopCd = 0; r.ringCd = 0; r.padCd = 0;
     r.score = 0; r.combo = 1; r.comboT = 0; r.roll = 0; r.pitch = 0;
+    r.wake.pts.length = 0; r.wake.o.visible = false;
     r.idx = nearestIdx(r.pos); r.prog = r.lap + r.idx / NS; r.rank = i + 1;
     if (r.ai) r.capMul = r.ai.skill;
   }
@@ -1305,7 +1390,20 @@ function stepRacer(r, inp, dt, t) {
   // Hoehe, Rampen, Landung
   r.hopCd = Math.max(0, r.hopCd - dt);
   var surf = waveAt(r.pos.x, r.pos.z, t);
+  r.flyCd = Math.max(0, r.flyCd - dt);
   if (r.air) {
+    // Ueber einen Gegner hinwegfliegen
+    if (r.isPlayer && r.flyCd <= 0) {
+      for (var jr = 0; jr < RACERS.length; jr++) {
+        var oj = RACERS[jr]; if (oj === r) continue;
+        var jdx = r.pos.x - oj.pos.x, jdz = r.pos.z - oj.pos.z;
+        if (jdx * jdx + jdz * jdz < 28 && r.pos.y - oj.pos.y > 2.4) {
+          r.flyCd = 3;
+          addScore(r, 450, UE + 'BERFLIEGER', 'p');
+          flash(UE + 'BERFLOGEN', 'hot'); sfx.sting(true);
+        }
+      }
+    }
     r.airT += dt;
     r.vy -= GRAV * dt;
     r.pos.y += r.vy * dt;
@@ -1350,6 +1448,14 @@ function stepRacer(r, inp, dt, t) {
     } else {
       var ahead = waveAt(r.pos.x + fwd.x * 4, r.pos.z + fwd.z * 4, t);
       var slope = (ahead - surf) / 4;
+      // Wellenhang wie beim Surfen: bergab zieht es an, bergauf bremst es
+      if (extra <= 0) {
+        vf -= slope * 46 * dt * (vf > 0 ? 1 : 0.3);
+        if (slope < -0.09 && vf > 30) {
+          r.surfT += dt;
+          if (r.surfT > 0.7) { r.surfT = 0; addScore(r, 90, 'WELLENRITT', ''); }
+        } else r.surfT = 0;
+      }
       if (extra <= 0 && r.hopCd <= 0 && ((slope > 0.075 && vf > 20) || inp.hop)) {
         r.air = true; r.airT = 0;
         r.vy = inp.hop ? (11.0 + vf * 0.07) : clamp(slope * vf * 1.55, 6.0, 24);
@@ -1380,15 +1486,44 @@ function stepRacer(r, inp, dt, t) {
   r.vf = vf;
   if (r.isPlayer && vf > r.topV) r.topV = vf;
 
-  // Felsen
+  // Trichterhilfe vor den Durchfahrten: seitlich zur Mitte ziehen, damit
+  // man sich nicht zwischen den beiden Kollidern des Tors verkeilt
+  for (var pk = 0; pk < passages.length; pk++) {
+    var pa = passages[pk];
+    var adx = r.pos.x - pa.x, adz = r.pos.z - pa.z;
+    var ad2 = adx * adx + adz * adz;
+    if (ad2 < 1100) {
+      var lat = adx * pa.rx + adz * pa.rz;
+      if (Math.abs(lat) < 13) {
+        var corr = -lat * 3.0 * (1 - Math.sqrt(ad2) / 33) * dt;
+        r.pos.x += pa.rx * corr; r.pos.z += pa.rz * corr;
+      }
+    }
+  }
+
+  // Felsen und Torpfeiler
   for (var k = 0; k < rocks.length; k++) {
     var ro = rocks[k], dx = r.pos.x - ro.x, dz = r.pos.z - ro.z;
     var d = Math.sqrt(dx * dx + dz * dz);
-    if (d < ro.r + 1.7 && d > 0.001) {
-      var push = ro.r + 1.7 - d;
-      r.pos.x += dx / d * push; r.pos.z += dz / d * push;
-      r.vel.multiplyScalar(0.42); r.drift = 0; r.combo = 1;
-      if (r.isPlayer) { shake = 1; shock = 1; sfx.thud(); }
+    var rr3 = ro.r + 1.7;
+    if (d < rr3 && d > 0.001) {
+      var nx = dx / d, nz = dz / d;
+      r.pos.x = ro.x + nx * rr3;
+      r.pos.z = ro.z + nz * rr3;
+      // Am Hindernis entlanggleiten statt davor stehen zu bleiben:
+      // nur der Anteil senkrecht zur Wand geht verloren.
+      var vn = r.vel.x * nx + r.vel.z * nz;
+      if (vn < 0) {
+        r.vel.x -= nx * vn * 1.2;
+        r.vel.z -= nz * vn * 1.2;
+        if (vn < -22) { r.drift = 0; r.combo = 1; }
+        if (r.isPlayer && vn < -8) {
+          shake = Math.max(shake, Math.min(1, -vn / 45));
+          shock = Math.max(shock, Math.min(1, -vn / 55));
+          sfx.thud();
+        }
+      }
+      r.vel.multiplyScalar(0.9);
     } else if (r.isPlayer && d < ro.r + 5.5 && Math.abs(vf) > 34 && state === 'race') {
       nearMiss(r, 'rock' + k);
     }
@@ -1475,6 +1610,7 @@ function driftBurst(r, lvl) {
   }
 }
 function wakeTrail(r, dt) {
+  updateWake(r.wake, r, dt, T);
   if (r.air) return;
   var sp = Math.abs(r.vf);
   if (sp < 4) return;
@@ -1671,17 +1807,20 @@ var sfx = (function () {
     var spb = 60 / (bpm * 4);
     while (nextT < ctx.currentTime + 0.14) {
       var bar = Math.floor(step16 / 16) % 8;        // Harmoniebogen ueber acht Takte
-      var sec = Math.floor(step16 / 128) % 2;       // A- und B-Teil loesen sich ab
+      var cyc = Math.floor(step16 / 128) % 4;       // vier Durchgaenge = 32 Takte Form
+      var sec = cyc % 2;                            // A- und B-Thema loesen sich ab
       var s = step16 % 16;
       var ch = CH[PROG[bar]];
       var fill = (bar === 7 && s >= 12);            // Fill in den letzten vier Sechzehnteln
+      var brk = (cyc === 3 && bar < 4);             // Breakdown im letzten Durchgang
 
-      if (BASS[s]) tone(nextT, ch[0] * BSTEP[BASSN[s]], spb * 2.0, 'sawtooth', 0.32, mus);
-      if (KICK[s] && !fill) tone(nextT, 146, 0.17, 'sine', 0.62, mus, 44);
-      if (SNAR[s] && !fill) hit(nextT, 0.10, 0.14, 1500, mus);
-      if (CONG[s]) tone(nextT, s % 4 === 3 ? 330 : 210, 0.12, 'sine', 0.22, mus, 150);
+      if (BASS[s]) tone(nextT, ch[0] * BSTEP[BASSN[s]], spb * 2.0, 'sawtooth', brk ? 0.24 : 0.32, mus);
+      if (KICK[s] && !fill && !brk) tone(nextT, 146, 0.17, 'sine', 0.62, mus, 44);
+      if (SNAR[s] && !fill && !brk) hit(nextT, 0.10, 0.14, 1500, mus);
+      if (CONG[s] && !brk) tone(nextT, s % 4 === 3 ? 330 : 210, 0.12, 'sine', 0.22, mus, 150);
       if (s % 2 === 1) hit(nextT, 0.026, intensity > 1 ? 0.055 : 0.04, 8000, mus);
-      if (SKNK[s] && !fill) for (var v = 0; v < 3; v++) tone(nextT, ch[1][v], spb * 0.62, 'square', 0.055, mus);
+      if (SKNK[s] && !fill && !brk) for (var v = 0; v < 3; v++) tone(nextT, ch[1][v], spb * 0.62, 'square', 0.055, mus);
+      if (brk && s === 0) tone(nextT, ch[1][0], spb * 15.0, 'triangle', 0.07, mus);   // Flaeche im Breakdown
 
       var m = (sec ? MEL_B : MEL_A)[step16 % 64];
       if (m && !fill) {
@@ -1774,6 +1913,22 @@ var sfx = (function () {
       if (!ctx || !on) return;
       hit(ctx.currentTime + 0.01, near ? 1.7 : 2.6, near ? 0.20 : 0.11, near ? 85 : 140, fx);
       this.one(near ? 46 : 38, near ? 1.5 : 2.2, 'sine', near ? 0.20 : 0.11, 24);
+    },
+    // Aufsteigendes Rauschen zum Wetterwechsel
+    riser: function () {
+      if (!ctx || !on) return;
+      var w = ctx.currentTime + 0.01;
+      var s = ctx.createBufferSource(); s.buffer = noiseBuf;
+      var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 3.2;
+      f.frequency.setValueAtTime(380, w);
+      f.frequency.exponentialRampToValueAtTime(5200, w + 1.3);
+      var g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, w);
+      g.gain.exponentialRampToValueAtTime(0.12, w + 1.1);
+      g.gain.exponentialRampToValueAtTime(0.0001, w + 1.45);
+      s.connect(f); f.connect(g); g.connect(fx);
+      s.start(w); s.stop(w + 1.5);
+      tone(w, 220, 1.35, 'sawtooth', 0.055, fx, 880);
     },
     rain: function (v) {
       if (!ctx) return;
@@ -2386,9 +2541,9 @@ function distToSeg(px, pz, ax, az, bx, bz) {
 // ============================================================
 var PHASES = [
   { n: 'GOLDENE STUNDE', swell: 1.00, dark: 0.00, rain: 0.00, fog: 0.00140, wind: 0.0, mus: 1 },
-  { n: 'BOEEN ZIEHEN AUF', swell: 1.26, dark: 0.36, rain: 0.12, fog: 0.00190, wind: 1.5, mus: 2 },
-  { n: 'REGEN', swell: 1.48, dark: 0.64, rain: 0.62, fog: 0.00250, wind: 2.8, mus: 2 },
-  { n: 'GEWITTER', swell: 1.80, dark: 0.90, rain: 1.00, fog: 0.00300, wind: 4.2, mus: 3 }
+  { n: 'BOEEN ZIEHEN AUF', swell: 1.32, dark: 0.36, rain: 0.12, fog: 0.00190, wind: 1.6, mus: 2 },
+  { n: 'REGEN', swell: 1.62, dark: 0.64, rain: 0.62, fog: 0.00250, wind: 3.0, mus: 2 },
+  { n: 'GEWITTER', swell: 2.00, dark: 0.90, rain: 1.00, fog: 0.00300, wind: 4.6, mus: 3 }
 ];
 var WEATHER_LINES = [
   '', 'Der Wind dreht. Halt dich fest.',
@@ -2539,6 +2694,9 @@ var weather = {
     }
     rain.mat.opacity = c.rain * 0.42;
     rain.o.visible = c.rain > 0.02;
+    SPRAY_TINT[0] = 0.98 - c.dark * 0.12;
+    SPRAY_TINT[1] = 0.92 + c.dark * 0.02;
+    SPRAY_TINT[2] = 0.82 + c.dark * 0.16;
   },
 
   // Ein Blitz: ferne Bahn am Horizont oder Einschlag neben der Strecke
@@ -2590,6 +2748,7 @@ var weather = {
         flash(PHASES[want].n, want >= 3 ? 'hot' : (want >= 1 ? 'amber' : ''));
         if (WEATHER_LINES[want]) say('WETTER', WEATHER_LINES[want], '#9fc6dd');
         sfx.music(PHASES[want].mus);
+        if (want > 0) sfx.riser();
         if (elWeather) elWeather.textContent = PHASES[want].n;
       }
     }
@@ -2997,6 +3156,14 @@ function orientRacer(r, inpSteer, dt) {
   if (hot) {
     var k = 0.75 + Math.random() * 0.5;
     fl.scale.set(0.8 + Math.random() * 0.3, k, 0.8 + Math.random() * 0.3);
+  }
+  // Bugfontaenen gehen mit dem Tempo auf
+  var sheets = r.mesh.userData.sheets;
+  var shOp = r.air ? 0 : clamp((Math.abs(r.vf) - 12) / 48, 0, 1) * 0.55;
+  for (var si = 0; si < 2; si++) {
+    sheets[si].material.opacity = shOp;
+    var sc2 = 0.55 + shOp * 2.3;
+    sheets[si].scale.set(sc2, sc2 * (0.85 + Math.random() * 0.3), 1);
   }
 
   var surf = waveAt(r.pos.x, r.pos.z, T);
