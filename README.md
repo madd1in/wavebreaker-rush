@@ -28,6 +28,11 @@ Regen fällt schräg, Gischt weht von den Kämmen und die See wirft dich von all
 die Luft. Der Rumpf verliert bei schwerer See spürbar Grip — im Sturm driftet es sich
 leichter, aber auch unfreiwilliger.
 
+Blitze sind gezeichnete Bahnen mit Verästelungen, nicht nur ein Aufblitzen. Manche
+schlagen neben der Strecke ein: Wassersäule, Druckwelle, und wer zu nah steht, wird
+weggeschoben. Dazu kann eine **Wasserhose** über die Bahn wandern, die alles in ihrer
+Nähe ansaugt. Wer bei schwerer See punktet, bekommt einen **Sturmbonus** bis ×1,6.
+
 ## Steuerung
 
 | Taste | Wirkung |
@@ -61,6 +66,7 @@ Am Handy: Daumenpad links, Turbo/Hop/Bremse rechts, Gas läuft automatisch.
 - **Geisterschiff** — eine Galeone mit brennenden Hecklaternen. Kommt man in
   Reichweite, feuert sie. Die Einschläge treffen selten, aber sie kosten Tempo.
 - **Delfine** — eskortieren den Führenden und springen mit.
+- **Fliegende Fische** — schrecken vor dem Bug auf, wenn du schnell genug bist.
 - **Papageien** — kreisen über der Bucht und tragen nichts zum Rennen bei.
 
 ## Actionpunkte
@@ -85,14 +91,20 @@ und zwei Google Fonts.
 - **Sprünge über ein Höhenfeld** — Rampen und Walrücken liefern eine Zusatzhöhe über der
   Wasserlinie. Bricht sie an einer Kante ab, hebt der Ski ab; wie weit, ergibt sich aus
   Fallhöhe und Auffahrtsrate. Rampe und Wal teilen sich denselben Mechanismus.
-- **Post-Effekt** — Render-Target plus Vollbild-Quad: radiale Tempostreifen,
-  chromatische Aberration bei Einschlägen, Vignette, Farbgradation.
+- **Post-Effekt** — vier Durchgänge: Szene ins Render-Target, Helligkeitsauszug mit
+  radialem Zug aus der Sonnenposition (Lichtstrahlen), zwei getrennte Unschärfen auf
+  Viertelauflösung, dann das Endbild mit Bloom, Tempostreifen, chromatischer Aberration
+  bei Einschlägen, Regen auf der Linse, Vignette und Farbgradation.
 - **Rundenzählung** — nicht über Trigger-Volumen, sondern über den nächstgelegenen
   Stützpunkt auf der Kurslinie plus ein Halbzeit-Flag. Abkürzen quer über die Bucht
   bringt deshalb nichts.
 - **Ton** — komplett synthetisch über WebAudio, Musik und Effekte auf getrennten Bussen.
-  Der Soundtrack ist ein sequenzierter Karibik-Groove: Offbeat-Akkorde, Congas,
-  Steel-Drum-Melodie über Am–Dm–E–Am, in der letzten Runde 20 BPM schneller.
+  Der Soundtrack ist keine Schleife über vier Takte mehr, sondern ein Stück: acht Takte
+  Harmonie (Am–Dm–E–Am–F–G–Am–E), zwei Steel-Drum-Themen, die sich alle acht Takte
+  ablösen, Gegenstimme im B-Teil, laufender Bass mit Quinten und Oktaven, Drum-Fill vor
+  jedem Durchgang. Drei Intensitätsstufen, gesteuert vom Wetter — im Gewitter kommen
+  Toms, Bordunfläche und eine Oktavverdopplung dazu. Große Aktionen setzen einen
+  musikalischen Akzent, für den die Musik kurz wegduckt.
 
 ### Achtung beim Ändern der Wellen
 

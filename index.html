@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-<meta name="description" content="Arcade-Jetski-Rennen im Browser: schwere See, aufziehendes Gewitter, Wrack-Durchfahrt und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
+<meta name="description" content="Arcade-Jetski-Rennen im Browser: schwere See, aufziehendes Gewitter mit Blitzen und Wasserhose, Wrack-Durchfahrt und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
 <meta name="theme-color" content="#03101a">
 <meta property="og:title" content="Wavebreaker Rush">
 <meta property="og:description" content="Arcade-Jetski-Rennen mit aufziehendem Gewitter. Three.js, WebGL, eine Datei.">
@@ -392,14 +392,87 @@ var postUni = {
   uSpeed: { value: 0 }, uFlash: { value: 0 }, uShock: { value: 0 },
   uBolt: { value: 0 }, uRain: { value: 0 }, uTime: { value: 0 }
 };
-var postScene = new THREE.Scene();
-var postCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-  uniforms: postUni, depthTest: false, depthWrite: false,
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,1.0,1.0); }',
+// Vollbild-Quad, dessen Material fuer jeden Durchgang getauscht wird
+var fsQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
+var fsScene = new THREE.Scene();
+fsScene.add(fsQuad);
+var fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+var FS_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy,1.0,1.0); }';
+function pass(mat, target) {
+  fsQuad.material = mat;
+  renderer.setRenderTarget(target || null);
+  renderer.render(fsScene, fsCam);
+}
+
+// Halbaufloesende Ziele fuer Bloom und Lichtstrahlen
+var rtA = new THREE.WebGLRenderTarget(2, 2, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+var rtB = new THREE.WebGLRenderTarget(2, 2, { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat });
+
+// Durchgang 1: helle Stellen isolieren und radial von der Sonne wegziehen
+var brightUni = {
+  tScene: { value: rtScene.texture },
+  uSunUV: { value: new THREE.Vector2(0.5, 0.5) },
+  uRay: { value: 0 }, uDark: { value: 0 }
+};
+var brightMat = new THREE.ShaderMaterial({
+  uniforms: brightUni, depthTest: false, depthWrite: false,
+  vertexShader: FS_VERT,
   fragmentShader: [
-    'uniform sampler2D tDiffuse;',
-    'uniform float uSpeed, uFlash, uShock, uBolt, uRain, uTime;',
+    'uniform sampler2D tScene; uniform vec2 uSunUV; uniform float uRay, uDark;',
+    'varying vec2 vUv;',
+    'float lum(vec3 c){ return dot(c, vec3(0.299,0.587,0.114)); }',
+    'void main(){',
+    '  vec3 c = texture2D(tScene, vUv).rgb;',
+    '  vec3 b = c * smoothstep(0.74, 1.06, lum(c));',
+    '  if (uRay > 0.002) {',
+    '    vec2 dir = (vUv - uSunUV) * 0.075;',
+    '    vec2 uv = vUv; float w = 1.0; vec3 acc = vec3(0.0);',
+    '    for (int i = 0; i < 12; i++) {',
+    '      uv -= dir;',
+    '      vec3 s = texture2D(tScene, uv).rgb;',
+    '      acc += s * smoothstep(0.78, 1.10, lum(s)) * w;',
+    '      w *= 0.90;',
+    '    }',
+    '    b += acc * uRay * 0.075;',
+    '  }',
+    '  gl_FragColor = vec4(b, 1.0);',
+    '}'
+  ].join('\n')
+});
+
+// Durchgang 2 und 3: getrennte Unschaerfe, waagerecht dann senkrecht
+function blurMat(dirX, dirY, tex) {
+  return new THREE.ShaderMaterial({
+    uniforms: { tSrc: { value: tex }, uTexel: { value: new THREE.Vector2(1 / 512, 1 / 512) }, uDir: { value: new THREE.Vector2(dirX, dirY) } },
+    depthTest: false, depthWrite: false,
+    vertexShader: FS_VERT,
+    fragmentShader: [
+      'uniform sampler2D tSrc; uniform vec2 uTexel; uniform vec2 uDir;',
+      'varying vec2 vUv;',
+      'void main(){',
+      '  vec2 o = uTexel * uDir;',
+      '  vec3 c = texture2D(tSrc, vUv).rgb * 0.2270;',
+      '  c += texture2D(tSrc, vUv + o*1.3846).rgb * 0.3162;',
+      '  c += texture2D(tSrc, vUv - o*1.3846).rgb * 0.3162;',
+      '  c += texture2D(tSrc, vUv + o*3.2308).rgb * 0.0703;',
+      '  c += texture2D(tSrc, vUv - o*3.2308).rgb * 0.0703;',
+      '  gl_FragColor = vec4(c, 1.0);',
+      '}'
+    ].join('\n')
+  });
+}
+var blurH = blurMat(1, 0, rtA.texture);
+var blurV = blurMat(0, 1, rtB.texture);
+
+postUni.tBloom = { value: rtA.texture };
+postUni.uBloom = { value: 0.62 };
+
+var finalMat = new THREE.ShaderMaterial({
+  uniforms: postUni, depthTest: false, depthWrite: false,
+  vertexShader: FS_VERT,
+  fragmentShader: [
+    'uniform sampler2D tDiffuse; uniform sampler2D tBloom;',
+    'uniform float uSpeed, uFlash, uShock, uBolt, uRain, uTime, uBloom;',
     'varying vec2 vUv;',
     'void main(){',
     '  vec2 c = vUv - 0.5;',
@@ -422,6 +495,7 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMate
     '  } else {',
     '    col = texture2D(tDiffuse, vUv + wob).rgb;',
     '  }',
+    '  col += texture2D(tBloom, vUv).rgb * uBloom;',               // Bloom und Lichtstrahlen
     '  col *= 1.0 - 0.27 * pow(clamp(r*1.42,0.0,1.0), 2.6);',      // Vignette
     '  col = pow(col, vec3(0.96, 0.98, 1.02));',                    // Lichter warm, Tiefen kuehl
     '  col = mix(vec3(dot(col, vec3(0.3,0.59,0.11))), col, 1.22);', // Sattigung
@@ -435,7 +509,17 @@ postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMate
     '  gl_FragColor = vec4(col, 1.0);',
     '}'
   ].join('\n')
-})));
+});
+
+// Szene -> Helligkeitsauszug -> zwei Unschaerfen -> Endbild
+function renderFrame() {
+  renderer.setRenderTarget(rtScene);
+  renderer.render(scene, camera);
+  pass(brightMat, rtA);
+  pass(blurH, rtB);
+  pass(blurV, rtA);
+  pass(finalMat, null);
+}
 
 // ---------- Himmel ------------------------------------------
 var skyUni = { uSun: { value: SUN }, uDark: { value: 0 }, uBolt: { value: 0 } };
@@ -575,9 +659,9 @@ var glare = (function () {
   x.fillStyle = g; x.fillRect(0, 0, 256, 256);
   var sp = new THREE.Sprite(new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, fog: false, opacity: 0.62
+    blending: THREE.AdditiveBlending, fog: false, opacity: 0.85
   }));
-  sp.scale.set(880, 880, 1);
+  sp.scale.set(1100, 1100, 1);
   scene.add(sp);
   return sp;
 })();
@@ -1112,7 +1196,9 @@ function nearestIdx(p) {
 // ---------- Punkte ------------------------------------------
 function addScore(r, pts, label, kind) {
   if (state !== 'race') return;
-  var total = Math.round(pts * r.combo);
+  // Sturmbonus: wer bei schwerer See punktet, bekommt mehr dafuer
+  var storm = 1 + (weather.cur ? weather.cur.dark : 0) * 0.6;
+  var total = Math.round(pts * r.combo * storm);
   r.score += total;
   r.combo = Math.min(8, r.combo + 1);
   r.comboT = 3.5;
@@ -1208,7 +1294,7 @@ function stepRacer(r, inp, dt, t) {
       vf += [0, 6, 11, 17][lvl];
       r.mini = [0, 0.5, 0.95, 1.5][lvl];
       r.drifts++;
-      if (r.isPlayer) { sfx.whoosh(); shake = Math.max(shake, 0.25 + lvl * 0.1); }
+      if (r.isPlayer) { sfx.whoosh(); if (lvl > 2) sfx.sting(false); shake = Math.max(shake, 0.25 + lvl * 0.1); }
       addScore(r, [0, 120, 260, 420][lvl], 'DRIFT ' + lvl, lvl >= 3 ? 'p' : 'o');
       driftBurst(r, lvl);
     }
@@ -1233,12 +1319,12 @@ function stepRacer(r, inp, dt, t) {
       splashBurst(r, Math.min(1, impact / 16));
       if (r.airT > 1.15) {
         addScore(r, Math.round(r.airT * 420), 'MEGASPRUNG', 'p');
-        if (r.isPlayer) { flash('MEGASPRUNG', 'hot'); }
+        if (r.isPlayer) { flash('MEGASPRUNG', 'hot'); sfx.sting(true); }
       } else if (r.airT > 0.5) addScore(r, Math.round(r.airT * 180), 'LUFTZEIT', '');
       if (Math.abs(r.airRoll) > 5.6) {
         r.boost = Math.min(100, r.boost + 45); r.tricks++;
         addScore(r, 500, 'ROLLE', 'p');
-        if (r.isPlayer) { flash('ROLLE! +TURBO', 'amber'); sfx.chime(); }
+        if (r.isPlayer) { flash('ROLLE! +TURBO', 'amber'); sfx.chime(); sfx.sting(true); }
       }
       r.airRoll = 0; r.airT = 0;
       if (r.isPlayer && impact > 8) { shake = Math.min(1, impact / 16); sfx.splash(); }
@@ -1315,7 +1401,7 @@ function stepRacer(r, inp, dt, t) {
       pg.cd = 3;
       addScore(r, 350, 'DURCH: ' + pg.name, 'p');
       flash(pg.name === 'WRACK' ? 'DURCHS WRACK!' : 'FELSENTOR!', 'hot');
-      sfx.chime();
+      sfx.chime(); sfx.sting(true);
     }
   }
 
@@ -1491,26 +1577,36 @@ function rubberBand() {
 var sfx = (function () {
   var ctx = null, on = true, master, mus, fx, eng, eng2, engGain, engFilt, noise, noiseGain, noiseFilt;
   var rainSrc, rainFilt, rainGain;
-  var timer = null, step16 = 0, nextT = 0, bpm = 126, intensity = 1;
-  // Am - Dm - E - Am: Karibik-Moll, ein Takt pro Akkord
+  var timer = null, step16 = 0, nextT = 0, bpm = 126, intensity = 1, musLevel = 0;
+  // Akkordvorrat und eine Harmonie ueber acht Takte statt vier
   var CH = [
-    [110.00, [220.00, 261.63, 329.63]],
-    [146.83, [293.66, 349.23, 440.00]],
-    [164.81, [329.63, 415.30, 493.88]],
-    [110.00, [220.00, 261.63, 329.63]]
+    [110.00, [220.00, 261.63, 329.63]],   // 0 Am
+    [146.83, [293.66, 349.23, 440.00]],   // 1 Dm
+    [164.81, [329.63, 415.30, 493.88]],   // 2 E
+    [174.61, [349.23, 440.00, 523.25]],   // 3 F
+    [196.00, [392.00, 493.88, 587.33]]    // 4 G
   ];
+  var PROG = [0, 1, 2, 0, 3, 4, 0, 2];
   var BASS = [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0];
+  var BASSN = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 1, 0, 0];  // 0 Grundton, 1 Quinte, 2 Oktave
+  var BSTEP = [1, 1.4983, 2];
   var KICK = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0];
   var SNAR = [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1];
   var SKNK = [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0];  // Offbeat-Akkord
   var CONG = [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0];
   var TOMS = [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 1];  // erst im Sturm
-  // Steel-Drum-Melodie ueber vier Takte, 0 = Pause
-  var MEL = [
+  // Zwei Steel-Drum-Themen zu je vier Takten, A und B loesen sich alle acht Takte ab
+  var MEL_A = [
     659.25, 0, 523.25, 440.00, 0, 0, 523.25, 0, 659.25, 0, 587.33, 523.25, 0, 0, 440.00, 0,
     587.33, 0, 698.46, 587.33, 0, 0, 440.00, 0, 587.33, 0, 698.46, 0, 659.25, 0, 587.33, 0,
     659.25, 0, 493.88, 415.30, 0, 0, 493.88, 0, 659.25, 0, 830.61, 0, 493.88, 0, 415.30, 0,
     440.00, 0, 523.25, 0, 659.25, 0, 880.00, 0, 659.25, 0, 0, 523.25, 0, 0, 493.88, 0
+  ];
+  var MEL_B = [
+    880.00, 0, 783.99, 659.25, 0, 659.25, 0, 587.33, 523.25, 0, 587.33, 0, 659.25, 0, 0, 0,
+    698.46, 0, 659.25, 587.33, 0, 0, 523.25, 0, 587.33, 0, 523.25, 0, 440.00, 0, 493.88, 0,
+    523.25, 0, 659.25, 0, 830.61, 0, 659.25, 0, 493.88, 0, 415.30, 0, 493.88, 0, 659.25, 0,
+    880.00, 0, 0, 783.99, 659.25, 0, 587.33, 0, 523.25, 0, 493.88, 440.00, 0, 0, 0, 0
   ];
   var noiseBuf = null;
 
@@ -1574,26 +1670,41 @@ var sfx = (function () {
     if (!ctx) return;
     var spb = 60 / (bpm * 4);
     while (nextT < ctx.currentTime + 0.14) {
-      var bar = Math.floor(step16 / 16) % 4, s = step16 % 16;
-      var ch = CH[bar];
-      if (BASS[s]) tone(nextT, ch[0], spb * 2.0, 'sawtooth', 0.32, mus);
-      if (KICK[s]) tone(nextT, 146, 0.17, 'sine', 0.62, mus, 44);
-      if (SNAR[s]) hit(nextT, 0.10, 0.14, 1500, mus);
+      var bar = Math.floor(step16 / 16) % 8;        // Harmoniebogen ueber acht Takte
+      var sec = Math.floor(step16 / 128) % 2;       // A- und B-Teil loesen sich ab
+      var s = step16 % 16;
+      var ch = CH[PROG[bar]];
+      var fill = (bar === 7 && s >= 12);            // Fill in den letzten vier Sechzehnteln
+
+      if (BASS[s]) tone(nextT, ch[0] * BSTEP[BASSN[s]], spb * 2.0, 'sawtooth', 0.32, mus);
+      if (KICK[s] && !fill) tone(nextT, 146, 0.17, 'sine', 0.62, mus, 44);
+      if (SNAR[s] && !fill) hit(nextT, 0.10, 0.14, 1500, mus);
       if (CONG[s]) tone(nextT, s % 4 === 3 ? 330 : 210, 0.12, 'sine', 0.22, mus, 150);
       if (s % 2 === 1) hit(nextT, 0.026, intensity > 1 ? 0.055 : 0.04, 8000, mus);
-      if (SKNK[s]) for (var v = 0; v < 3; v++) tone(nextT, ch[1][v], spb * 0.62, 'square', 0.055, mus);
-      var m = MEL[step16 % 64];
-      if (m) {
+      if (SKNK[s] && !fill) for (var v = 0; v < 3; v++) tone(nextT, ch[1][v], spb * 0.62, 'square', 0.055, mus);
+
+      var m = (sec ? MEL_B : MEL_A)[step16 % 64];
+      if (m && !fill) {
         tone(nextT, m, spb * 2.6, 'triangle', 0.125, mus);
         tone(nextT, m * 2.01, spb * 1.1, 'sine', 0.05, mus);   // Obertonschimmer der Steel Drum
+      }
+      // Gegenstimme antwortet im B-Teil in den Melodiepausen
+      if (sec && intensity > 1 && !m && (s === 4 || s === 12)) {
+        tone(nextT, ch[1][1] * 0.5, spb * 3.2, 'sawtooth', 0.075, mus);
       }
       if (intensity > 1 && (s === 0 || s === 8)) tone(nextT, ch[0] * 0.5, spb * 3.0, 'sawtooth', 0.15, mus);
       if (intensity > 2) {
         // Sturmlage: Toms, Bordunflaeche, Melodie eine Oktave tiefer verdoppelt
-        if (TOMS[s]) tone(nextT, s < 8 ? 152 : 114, 0.24, 'sine', 0.30, mus, 68);
+        if (TOMS[s] && !fill) tone(nextT, s < 8 ? 152 : 114, 0.24, 'sine', 0.30, mus, 68);
         if (s === 0) tone(nextT, ch[0] * 0.5, spb * 15.0, 'sawtooth', 0.075, mus);
-        if (m) tone(nextT, m * 0.5, spb * 2.2, 'sawtooth', 0.055, mus);
+        if (m && !fill) tone(nextT, m * 0.5, spb * 2.2, 'sawtooth', 0.055, mus);
         if (s === 0 && bar === 0) hit(nextT, 0.55, 0.09, 3000, mus);
+      }
+      if (fill) {
+        var fi = s - 12;
+        tone(nextT, 190 - fi * 26, 0.13, 'sine', 0.34, mus, 70);
+        hit(nextT, 0.07, 0.10 + fi * 0.02, 1800, mus);
+        if (fi === 3) hit(nextT, 0.45, 0.10, 2600, mus);
       }
       nextT += spb; step16++;
     }
@@ -1606,7 +1717,8 @@ var sfx = (function () {
       if (!ctx) return;
       intensity = level > 2 ? 3 : (level > 1 ? 2 : 1);
       bpm = level > 2 ? 152 : (level > 1 ? 143 : 126);
-      mus.gain.setTargetAtTime(level > 0 ? 0.62 : 0.0, ctx.currentTime, 0.6);
+      musLevel = level > 0 ? 0.62 : 0.0;
+      mus.gain.setTargetAtTime(musLevel, ctx.currentTime, 0.6);
       if (level > 0 && !timer) { nextT = ctx.currentTime + 0.06; step16 = 0; timer = setInterval(schedule, 25); }
       if (level <= 0 && timer) { clearInterval(timer); timer = null; }
     },
@@ -1642,6 +1754,21 @@ var sfx = (function () {
       if (!ctx || !on) return;
       this.one(74, 0.55, 'sine', 0.26, 28);
       hit(ctx.currentTime + 0.005, 0.3, 0.10, 220, fx);
+    },
+    // Musikalischer Akzent auf grosse Aktionen, Musik duckt dafuer kurz weg
+    sting: function (big) {
+      if (!ctx || !on) return;
+      var w = ctx.currentTime + 0.01;
+      var notes = big ? [440, 523.25, 659.25, 880] : [523.25, 659.25, 783.99];
+      for (var i = 0; i < notes.length; i++) {
+        tone(w + i * 0.055, notes[i], 0.26, 'square', 0.07, fx);
+        tone(w + i * 0.055, notes[i] * 2, 0.18, 'triangle', 0.03, fx);
+      }
+      if (musLevel > 0) {
+        mus.gain.cancelScheduledValues(w);
+        mus.gain.setTargetAtTime(musLevel * 0.5, w, 0.04);
+        mus.gain.setTargetAtTime(musLevel, w + 0.34, 0.18);
+      }
     },
     thunder: function (near) {
       if (!ctx || !on) return;
@@ -1980,6 +2107,29 @@ var parrots = (function () {
   return list;
 })();
 
+// ---------- Fliegende Fische --------------------------------
+var flyfish = (function () {
+  var bodyM = new THREE.MeshPhongMaterial({ color: 0xa8cadc, shininess: 100, specular: 0xffffff });
+  var finM = new THREE.MeshPhongMaterial({ color: 0x74a0b8, shininess: 40, side: THREE.DoubleSide });
+  var list = [];
+  for (var i = 0; i < 10; i++) {
+    var g = new THREE.Group();
+    var b = new THREE.Mesh(new THREE.SphereGeometry(0.42, 8, 6), bodyM);
+    b.scale.set(0.5, 0.55, 1.7); g.add(b);
+    for (var s = -1; s <= 1; s += 2) {
+      var w = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.62), finM);
+      w.rotation.x = Math.PI / 2; w.rotation.z = s * 0.22;
+      w.position.set(s * 0.78, 0.05, 0.05); g.add(w);
+    }
+    var tail = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 4), finM);
+    tail.scale.set(1, 1, 0.2); tail.rotation.x = -Math.PI / 2; tail.position.z = -0.85; g.add(tail);
+    g.visible = false;
+    scene.add(g);
+    list.push({ o: g, life: 0, vx: 0, vy: 0, vz: 0, x: 0, y: 0, z: 0 });
+  }
+  return { list: list, cd: 0, head: 0 };
+})();
+
 // ---------- Bewegung & Wechselwirkung -----------------------
 var _fv = new THREE.Vector3();
 fauna = {
@@ -1988,6 +2138,8 @@ fauna = {
     whale.st = 'deep'; whale.tt = 9; whale.up = 0; whale.blew = false;
     whale.o.position.y = -14;
     ship.cd = 6; ship.ball = null;
+    for (var f = 0; f < flyfish.list.length; f++) { flyfish.list[f].life = 0; flyfish.list[f].o.visible = false; }
+    flyfish.cd = 3;
   },
 
   // Hoehe des Walruckens ueber der Wasserlinie - 0 wenn er abgetaucht ist
@@ -2165,6 +2317,46 @@ fauna = {
       }
     }
 
+    // --- Fliegende Fische: schrecken vor dem Bug auf ---
+    flyfish.cd -= dt;
+    if (flyfish.cd <= 0 && state === 'race' && Math.abs(player.vf) > 34 && !player.air) {
+      flyfish.cd = 2.4 + Math.random() * 5;
+      var ffwd = _fv.set(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+      var fn = 3 + Math.floor(Math.random() * 3);
+      for (var fk = 0; fk < fn; fk++) {
+        var f = flyfish.list[flyfish.head];
+        flyfish.head = (flyfish.head + 1) % flyfish.list.length;
+        var side = Math.random() < 0.5 ? -1 : 1;
+        var lead = 16 + Math.random() * 15, off2 = 3 + Math.random() * 8;
+        f.x = player.pos.x + ffwd.x * lead + ffwd.z * side * off2;
+        f.z = player.pos.z + ffwd.z * lead - ffwd.x * side * off2;
+        f.y = waveAt(f.x, f.z, t);
+        var fsp = 12 + Math.random() * 11;
+        f.vx = ffwd.x * fsp * 0.5 + ffwd.z * side * fsp * 0.7;
+        f.vz = ffwd.z * fsp * 0.5 - ffwd.x * side * fsp * 0.7;
+        f.vy = 7 + Math.random() * 5;
+        f.life = 1.6 + Math.random() * 0.9;
+        f.o.visible = true;
+        PS_SPRAY.spawn(f.x, f.y, f.z, f.vx * 0.3, 3, f.vz * 0.3, 0.4);
+      }
+    }
+    for (var fi = 0; fi < flyfish.list.length; fi++) {
+      var ff = flyfish.list[fi];
+      if (ff.life <= 0) continue;
+      ff.life -= dt;
+      ff.vy -= 14 * dt;
+      ff.x += ff.vx * dt; ff.y += ff.vy * dt; ff.z += ff.vz * dt;
+      var wsf = waveAt(ff.x, ff.z, t);
+      if ((ff.y <= wsf && ff.vy < 0) || ff.life <= 0) {
+        ff.life = 0; ff.o.visible = false;
+        PS_SPRAY.spawn(ff.x, wsf, ff.z, 0, 3.5, 0, 0.45);
+        continue;
+      }
+      ff.o.position.set(ff.x, ff.y, ff.z);
+      ff.o.rotation.y = Math.atan2(ff.vx, ff.vz);
+      ff.o.rotation.x = -Math.atan2(ff.vy, Math.sqrt(ff.vx * ff.vx + ff.vz * ff.vz));
+    }
+
     // --- Papageien ---
     for (var pI = 0; pI < parrots.length; pI++) {
       var pr = parrots[pI];
@@ -2232,6 +2424,69 @@ var rain = (function () {
   return { o: lines, geo: geo, pos: pos, drops: drops, mat: mat };
 })();
 
+// ---------- Blitz als gezeichnete Bahn ----------------------
+var BOLT_SEG = 80;
+var bolt = (function () {
+  var pos = new Float32Array(BOLT_SEG * 6);
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setDrawRange(0, 0);
+  var mat = new THREE.LineBasicMaterial({
+    color: 0xeaf6ff, transparent: true, opacity: 0.95, fog: false, depthWrite: false
+  });
+  var o = new THREE.LineSegments(geo, mat);
+  o.frustumCulled = false; o.visible = false;
+  scene.add(o);
+  return { o: o, geo: geo, pos: pos, mat: mat, t: 0 };
+})();
+
+function drawBolt(sx, sy, sz, ex, ey, ez) {
+  var pos = bolt.pos, n = 0;
+  function seg(ax, ay, az, bx, by, bz) {
+    if (n >= BOLT_SEG) return;
+    var o = n * 6;
+    pos[o] = ax; pos[o + 1] = ay; pos[o + 2] = az;
+    pos[o + 3] = bx; pos[o + 4] = by; pos[o + 5] = bz;
+    n++;
+  }
+  function fork(x0, y0, z0, x1, y1, z1, steps, jit, depth) {
+    var px = x0, py = y0, pz = z0;
+    for (var i = 1; i <= steps; i++) {
+      var f = i / steps;
+      var nx = x0 + (x1 - x0) * f + (Math.random() - 0.5) * jit * (1 - f * 0.65);
+      var ny = y0 + (y1 - y0) * f;
+      var nz = z0 + (z1 - z0) * f + (Math.random() - 0.5) * jit * (1 - f * 0.65);
+      seg(px, py, pz, nx, ny, nz);
+      if (depth > 0 && i > 2 && Math.random() < 0.32) {
+        fork(nx, ny, nz, nx + (Math.random() - 0.5) * 80, ny - 30 - Math.random() * 50,
+          nz + (Math.random() - 0.5) * 80, 4, jit * 0.5, depth - 1);
+      }
+      px = nx; py = ny; pz = nz;
+    }
+  }
+  fork(sx, sy, sz, ex, ey, ez, 16, 28, 1);
+  bolt.geo.setDrawRange(0, n * 2);
+  bolt.geo.attributes.position.needsUpdate = true;
+  bolt.o.visible = true;
+  bolt.t = 0.2;
+}
+
+// ---------- Wasserhose --------------------------------------
+var spout = (function () {
+  var m1 = new THREE.MeshBasicMaterial({ color: 0x93aabb, transparent: true, opacity: 0.26, side: THREE.DoubleSide, depthWrite: false, fog: false });
+  var m2 = new THREE.MeshBasicMaterial({ color: 0xd6e6f2, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false, fog: false });
+  var g = new THREE.Group();
+  var outer = new THREE.Mesh(new THREE.CylinderGeometry(14, 3.2, 80, 14, 1, true), m1);
+  outer.position.y = 40; g.add(outer);
+  var inner = new THREE.Mesh(new THREE.CylinderGeometry(9.5, 1.9, 78, 12, 1, true), m2);
+  inner.position.y = 39; g.add(inner);
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(10, 6, 6, 14, 1, true), m2);
+  base.position.y = 3; g.add(base);
+  g.visible = false;
+  scene.add(g);
+  return { o: g, outer: outer, inner: inner, base: base, on: false, x: 0, z: 0, life: 0, cd: 16, idx: 0 };
+})();
+
 // ---------- Wetterzustand -----------------------------------
 var weather = {
   idx: 0, cur: null, tgt: null, bolt: 0, boltCd: 6, thunderCd: -1, thunderNear: false,
@@ -2243,6 +2498,8 @@ var weather = {
     for (var k in PHASES[0]) this.cur[k] = PHASES[0][k];
     this.tgt = PHASES[0];
     this.bolt = 0; this.boltCd = 7; this.thunderCd = -1;
+    spout.on = false; spout.o.visible = false; spout.cd = 18;
+    bolt.o.visible = false; bolt.t = 0;
     this.apply(1);
     sfx.rain(0);
   },
@@ -2273,7 +2530,7 @@ var weather = {
     sunLight.intensity = 1.6 * (1 - c.dark * 0.82);
     hemi.intensity = 0.95 * (1 - c.dark * 0.42) + this.bolt * 1.4;
     rim.intensity = 0.5 + c.dark * 0.5;
-    glare.material.opacity = 0.62 * (1 - c.dark);
+    glare.material.opacity = 0.85 * (1 - c.dark);
     for (var i = 0; i < clouds.length; i++) {
       var cl = clouds[i];
       cl.o.material.color.copy(cl.base).lerp(
@@ -2282,6 +2539,45 @@ var weather = {
     }
     rain.mat.opacity = c.rain * 0.42;
     rain.o.visible = c.rain > 0.02;
+  },
+
+  // Ein Blitz: ferne Bahn am Horizont oder Einschlag neben der Strecke
+  strike: function (near, t) {
+    var cx, cz;
+    if (near) {
+      var ti = (player.idx + 40 + Math.floor(Math.random() * 90)) % NS;
+      var tp = TRACK[ti], tr = rightOf(TAN[ti]);
+      var off = (Math.random() < 0.5 ? -1 : 1) * (28 + Math.random() * 42);
+      cx = tp.x + tr.x * off; cz = tp.z + tr.z * off;
+    } else {
+      var a = Math.random() * 6.283, rd = 420 + Math.random() * 520;
+      cx = player.pos.x + Math.cos(a) * rd; cz = player.pos.z + Math.sin(a) * rd;
+    }
+    var hy = waveAt(cx, cz, t);
+    drawBolt(cx + (Math.random() - 0.5) * 130, 330, cz + (Math.random() - 0.5) * 130, cx, hy, cz);
+    this.bolt = near ? 1.3 : 0.7 + Math.random() * 0.4;
+    this.thunderNear = near;
+    this.thunderCd = near ? 0.16 + Math.random() * 0.22 : 1.2 + Math.random() * 1.9;
+    if (!near) return;
+    for (var i = 0; i < 70; i++) {
+      var aa = Math.random() * 6.283, ss = Math.random() * 9;
+      PS_SPRAY.spawn(cx + Math.cos(aa) * 2, hy, cz + Math.sin(aa) * 2,
+        Math.cos(aa) * ss, 14 + Math.random() * 24, Math.sin(aa) * ss, 0.8 + Math.random() * 0.8);
+    }
+    for (var ri = 0; ri < RACERS.length; ri++) {
+      var rc = RACERS[ri];
+      var ddx = rc.pos.x - cx, ddz = rc.pos.z - cz;
+      var dd = Math.sqrt(ddx * ddx + ddz * ddz);
+      if (dd < 34 && dd > 0.5) {
+        var push = (1 - dd / 34) * 26;
+        rc.vel.x += ddx / dd * push; rc.vel.z += ddz / dd * push;
+        rc.combo = 1;
+        if (rc.isPlayer) {
+          shake = 1; shock = 1;
+          say('EINSCHLAG', 'Das war knapp. Riecht nach verbranntem Salz.', '#cfe6ff');
+        }
+      }
+    }
   },
 
   update: function (dt, t) {
@@ -2310,17 +2606,65 @@ var weather = {
 
     // Blitze
     this.bolt = Math.max(0, this.bolt - dt * 5.5);
+    bolt.t = Math.max(0, bolt.t - dt);
+    if (bolt.o.visible) {
+      if (bolt.t <= 0) bolt.o.visible = false;
+      else bolt.mat.opacity = 0.45 + Math.random() * 0.55;   // Flackern
+    }
     if (this.cur.dark > 0.45) {
       this.boltCd -= dt;
       if (this.boltCd <= 0) {
         this.boltCd = 3.5 + Math.random() * 7 * (1.4 - this.cur.dark);
-        this.bolt = 0.75 + Math.random() * 0.5;
-        this.thunderNear = Math.random() < 0.45;
-        this.thunderCd = this.thunderNear ? 0.25 + Math.random() * 0.4 : 1.2 + Math.random() * 1.8;
-        // Doppelschlag
+        this.strike(Math.random() < 0.32 && state === 'race', t);
         var self = this;
         setTimeout(function () { if (self.cur.dark > 0.4) self.bolt = 0.5 + Math.random() * 0.4; }, 90 + Math.random() * 120);
       }
+    }
+
+    // Wasserhose
+    spout.cd -= dt;
+    if (!spout.on && spout.cd <= 0 && this.cur.dark > 0.5 && state === 'race') {
+      spout.on = true; spout.life = 16; spout.cd = 28 + Math.random() * 16;
+      spout.idx = (player.idx + 150 + Math.floor(Math.random() * 130)) % NS;
+      spout.x = TRACK[spout.idx].x; spout.z = TRACK[spout.idx].z;
+      spout.o.visible = true;
+      say('AUSGUCK', 'Wasserhose voraus. Weit aussen vorbei, wenn du klug bist.', '#9fc6dd');
+    }
+    if (spout.on) {
+      spout.life -= dt;
+      spout.idx = (spout.idx + 1) % NS;                    // driftet die Bahn entlang
+      var sp1 = TRACK[spout.idx];
+      spout.x += (sp1.x - spout.x) * Math.min(1, dt * 0.8);
+      spout.z += (sp1.z - spout.z) * Math.min(1, dt * 0.8);
+      var syy = waveAt(spout.x, spout.z, t);
+      spout.o.position.set(spout.x, syy - 2, spout.z);
+      spout.outer.rotation.y = t * 2.4;
+      spout.inner.rotation.y = -t * 3.6;
+      var fade = Math.min(1, spout.life / 2.5);
+      spout.outer.material.opacity = 0.26 * fade;
+      spout.inner.material.opacity = 0.18 * fade;
+      spout.base.material.opacity = 0.18 * fade;
+      for (var qq = 0; qq < 3; qq++) {
+        var aa = Math.random() * 6.283, rr2 = 4 + Math.random() * 7;
+        PS_SPRAY.spawn(spout.x + Math.cos(aa) * rr2, syy, spout.z + Math.sin(aa) * rr2,
+          -Math.sin(aa) * 11, 7 + Math.random() * 11, Math.cos(aa) * 11, 0.7 + Math.random() * 0.6);
+      }
+      for (var ri = 0; ri < RACERS.length; ri++) {
+        var rc = RACERS[ri];
+        var sdx = spout.x - rc.pos.x, sdz = spout.z - rc.pos.z;
+        var sd = Math.sqrt(sdx * sdx + sdz * sdz);
+        if (sd < 30 && sd > 0.5) {
+          var pull = (1 - sd / 30) * 22;
+          rc.vel.x += sdx / sd * pull * dt;
+          rc.vel.z += sdz / sd * pull * dt;
+          if (rc.isPlayer) shake = Math.max(shake, (1 - sd / 30) * 0.7);
+          if (sd < 9) {
+            rc.yaw += dt * 3.2; rc.vel.multiplyScalar(0.965); rc.combo = 1;
+            if (rc.isPlayer) shock = Math.max(shock, 0.5);
+          }
+        }
+      }
+      if (spout.life <= 0) { spout.on = false; spout.o.visible = false; }
     }
     if (this.thunderCd > 0) {
       this.thunderCd -= dt;
@@ -2348,6 +2692,16 @@ var weather = {
         pos[o + 3] = d.x - wx * streak; pos[o + 4] = d.y + streak; pos[o + 5] = d.z - wz * streak;
       }
       rain.geo.attributes.position.needsUpdate = true;
+      // Einschlagringe auf dem Wasser
+      if (state !== 'menu') {
+        for (var sp2 = 0; sp2 < 3; sp2++) {
+          var rx = player.pos.x + (Math.random() - 0.5) * 70;
+          var rz = player.pos.z + (Math.random() - 0.5) * 70;
+          PS_FOAM.spawn(rx, waveAt(rx, rz, t) + 0.1, rz,
+            (Math.random() - 0.5) * 1.2, 1.2 + Math.random() * 1.4, (Math.random() - 0.5) * 1.2,
+            0.3 + Math.random() * 0.25);
+        }
+      }
     }
 
     // Gischt weht von den Kaemmen - nur in der Naehe des Spielers
@@ -2563,8 +2917,19 @@ function endRace() {
   state = 'done';
   sfx.idle(); sfx.music(1);
   var rank = ranking(), place = rank.indexOf(player) + 1;
+  // Fotofinish: liegt der naechste Fahrer unter einer Drittelsekunde?
+  var closest = Infinity;
+  for (var ni = 0; ni < rank.length; ni++) {
+    if (rank[ni].isPlayer) continue;
+    var o = rank[ni];
+    var g2 = o.finished ? Math.abs(o.finishT - player.finishT)
+      : Math.abs((player.prog - o.prog) * TRACK_LEN / 46);
+    if (g2 < closest) closest = g2;
+  }
+  var photo = closest < 0.35;
   $('rTitle').innerHTML = 'PLATZ <span>' + place + '</span>';
-  $('rEyebrow').textContent = place === 1 ? 'ZIELDURCHFAHRT ' + MIDDOT + ' SIEG' : 'ZIELDURCHFAHRT';
+  $('rEyebrow').textContent = photo ? 'FOTOFINISH'
+    : (place === 1 ? 'ZIELDURCHFAHRT ' + MIDDOT + ' SIEG' : 'ZIELDURCHFAHRT');
   $('rTotal').textContent = fmt(player.finishT);
   $('rBest').textContent = fmt(player.best);
   $('rScore').textContent = player.score;
@@ -2589,7 +2954,9 @@ function endRace() {
   else $('rRec').innerHTML = 'REKORD ' + fmt(REC.time) + ' &middot; BESTER STYLE ' + REC.score;
   elResult.className = 'screen';
   elLights.className = '';
-  flash(place === 1 ? 'GEWONNEN' : 'ZIEL', place === 1 ? 'amber' : '');
+  flash(photo ? 'FOTOFINISH' : (place === 1 ? 'GEWONNEN' : 'ZIEL'),
+    photo ? 'hot' : (place === 1 ? 'amber' : ''));
+  if (place === 1 || photo) sfx.sting(true);
 }
 $('start').addEventListener('click', function () { startRace(true); });
 $('startWin').addEventListener('click', function () { startRace(false); });
@@ -2643,6 +3010,7 @@ function orientRacer(r, inpSteer, dt) {
 
 // ---------- Kamera ------------------------------------------
 var camTarget = new THREE.Vector3(), camLook = new THREE.Vector3();
+var _sunW = new THREE.Vector3(), _camDir = new THREE.Vector3();
 function updateCamera(dt) {
   if (state === 'menu') {
     var a = T * 0.15, rad = 33;
@@ -2665,6 +3033,7 @@ function updateCamera(dt) {
   camera.position.lerp(camTarget, 1 - Math.pow(0.0009, dt));
   camLook.set(r.pos.x + fwd.x * 9, r.pos.y + 1.7, r.pos.z + fwd.z * 9);
   camera.lookAt(camLook);
+  camera.rotateZ(r.roll * 0.14);            // Kamera legt sich leicht mit in die Kurve
   var fov = 62 + spd * 13 + (r.boosting ? 8 : 0) + (r.mini > 0 ? 4 : 0);
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 3.5);
   if (shake > 0.001) {
@@ -2695,7 +3064,9 @@ function updateHud(dt) {
 
   if (player.score !== lastScore) { elScore.textContent = player.score; lastScore = player.score; }
   elComboFill.style.width = (player.combo > 1 ? clamp(player.comboT / 3.5, 0, 1) * 100 : 0) + '%';
+  var smul = weather.cur ? 1 + weather.cur.dark * 0.6 : 1;
   var ct = player.combo > 1 ? 'KOMBO x' + player.combo : '';
+  if (smul > 1.08) ct += (ct ? '   ' : '') + 'STURM x' + smul.toFixed(1);
   if (elCombo.textContent !== ct) elCombo.textContent = ct;
 
   hudAcc += dt;
@@ -2821,6 +3192,10 @@ function resize() {
   var w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
   renderer.setSize(w, h, false);
   rtScene.setSize(Math.floor(w * PR), Math.floor(h * PR));
+  var bw = Math.max(2, Math.floor(w * PR / 4)), bh = Math.max(2, Math.floor(h * PR / 4));
+  rtA.setSize(bw, bh); rtB.setSize(bw, bh);
+  blurH.uniforms.uTexel.value.set(1 / bw, 1 / bh);
+  blurV.uniforms.uTexel.value.set(1 / bw, 1 / bh);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
@@ -2911,10 +3286,16 @@ function loop(now) {
   postUni.uTime.value = T;
   postUni.uRain.value = weather.cur ? weather.cur.rain : 0;
 
-  renderer.setRenderTarget(rtScene);
-  renderer.render(scene, camera);
-  renderer.setRenderTarget(null);
-  renderer.render(postScene, postCam);
+  // Sonnenposition auf dem Schirm fuer die Lichtstrahlen
+  camera.getWorldDirection(_camDir);
+  var facing = _camDir.dot(SUN);
+  if (facing > 0.05) {
+    _sunW.copy(camera.position).addScaledVector(SUN, 2500).project(camera);
+    brightUni.uSunUV.value.set(_sunW.x * 0.5 + 0.5, _sunW.y * 0.5 + 0.5);
+    brightUni.uRay.value = Math.min(1, (facing - 0.05) * 2.4) * (1 - (weather.cur ? weather.cur.dark : 0) * 0.72);
+  } else brightUni.uRay.value = 0;
+
+  renderFrame();
 }
 
 // ---------- Start -------------------------------------------
