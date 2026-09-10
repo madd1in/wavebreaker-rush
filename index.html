@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-<meta name="description" content="Arcade-Jetski-Rennen im Browser: schwere See mit Surf-Physik, aufziehendes Gewitter, Rempelduelle, Wrack-Durchfahrt und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
+<meta name="description" content="Arcade-Jetski-Rennen im Browser: sinkende Sonne, schwere See mit Surf-Physik, aufziehendes Gewitter, Riffslalom und Blauwal-Rampe. Three.js, WebGL, eine Datei.">
 <meta name="theme-color" content="#03101a">
 <meta property="og:title" content="Wavebreaker Rush">
 <meta property="og:description" content="Arcade-Jetski-Rennen auf schwerer See. Three.js, WebGL, eine Datei.">
@@ -183,7 +183,7 @@ th.tm{text-align:right;padding-right:0}
 .stat.hi b{color:var(--lime)}
 
 /* ---------- Ecktasten ---------- */
-#corner{position:fixed;top:14px;right:14px;display:flex;gap:8px;z-index:6}
+#corner{position:fixed;top:clamp(180px,26vh,212px);left:14px;display:flex;gap:8px;z-index:6}
 .cbtn{pointer-events:auto;width:38px;height:38px;display:flex;align-items:center;justify-content:center;
   background:var(--panel);border:2px solid var(--edge);color:var(--cyan);cursor:pointer;
   font-size:15px;font-weight:700;font-family:var(--hud)}
@@ -267,7 +267,7 @@ th.tm{text-align:right;padding-right:0}
     Was als goldene Stunde anf&auml;ngt, endet als Gewitter &mdash; mit doppelt so hoher
     D&uuml;nung, Seitenwind und einer Galeone, die Zuschauer f&uuml;r Zielscheiben h&auml;lt.</p>
   <div class="tips">
-    <div class="tip"><b>DURCHS WRACK</b> &rarr; die Bruchstelle ist die Abk&uuml;rzung</div>
+    <div class="tip"><b>RIFFSLALOM</b> eng an den Nadeln &rarr; Style-Punkte</div>
     <div class="tip"><b>&Uuml;BER DEN WAL</b> &rarr; der weiteste Sprung im Rennen</div>
     <div class="tip"><b>WELLENRITT</b> bergab auf der Welle &rarr; Extra-Tempo</div>
     <div class="tip"><b>DRIFT</b> aufladen und loslassen &rarr; Schub</div>
@@ -345,6 +345,15 @@ var STORE = 'wavebreaker.v1';
 // Wird eine Zeile geaendert, muss die andere Fassung mit.
 // SWELL / uSwell skaliert beide gemeinsam - daran haengt der Seegang.
 var SWELL = 1.0;
+
+// Weiche Schulter gegen ausbrennende Lichter. Muss schon in den
+// Szenen-Shadern greifen: das Renderziel hat nur 8 Bit, was dort
+// ueber 1.0 landet, ist vor dem Post-Effekt schon flach abgeschnitten.
+var SHOULDER_GLSL = [
+'float shoulder(float x){ return x < 0.72 ? x : 1.0 - 0.28 * exp(-(x - 0.72) / 0.28); }',
+'vec3 shoulder3(vec3 c){ return vec3(shoulder(c.r), shoulder(c.g), shoulder(c.b)); }'
+].join('\n');
+
 var WAVE_GLSL = [
 'float wv(vec2 p, float t, float sw){',
 '  float h = 2.38*sin(p.x*0.0168 + t*0.80);',
@@ -472,7 +481,7 @@ var blurH = blurMat(1, 0, rtA.texture);
 var blurV = blurMat(0, 1, rtB.texture);
 
 postUni.tBloom = { value: rtA.texture };
-postUni.uBloom = { value: 0.46 };
+postUni.uBloom = { value: 0.34 };
 
 var finalMat = new THREE.ShaderMaterial({
   uniforms: postUni, depthTest: false, depthWrite: false,
@@ -541,6 +550,7 @@ var sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 32, 18), new THREE.Shade
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: [
     'uniform vec3 uSun; uniform float uDark; uniform float uBolt; varying vec3 vDir;',
+    SHOULDER_GLSL,
     'void main(){',
     '  float h = clamp(vDir.y*1.15 + 0.03, 0.0, 1.0);',
     '  vec3 horizon = mix(vec3(1.00,0.60,0.28), vec3(0.31,0.31,0.35), uDark);',
@@ -549,10 +559,10 @@ var sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 32, 18), new THREE.Shade
     '  vec3 c = mix(horizon, mid, pow(h,0.40));',
     '  c = mix(c, zenith, pow(h,1.55));',
     '  float d = max(dot(normalize(vDir), uSun), 0.0);',
-    '  c += (1.0 - uDark*0.88) * vec3(1.0,0.72,0.36) * (pow(d,900.0)*5.5 + pow(d,26.0)*0.60 + pow(d,4.0)*0.24);',
-    '  c += (1.0 - uDark) * vec3(1.0,0.52,0.26) * pow(1.0-h, 15.0) * 0.32;',
+    '  c += (1.0 - uDark*0.88) * vec3(1.0,0.72,0.36) * (pow(d,900.0)*3.0 + pow(d,26.0)*0.40 + pow(d,4.0)*0.15);',
+    '  c += (1.0 - uDark) * vec3(1.0,0.52,0.26) * pow(1.0-h, 15.0) * 0.26;',
     '  c += uBolt * (0.35 + 0.65*pow(h,0.5)) * vec3(0.86,0.90,1.0);',
-    '  gl_FragColor = vec4(c,1.0);',
+    '  gl_FragColor = vec4(shoulder3(c),1.0);',
     '}'
   ].join('\n')
 }));
@@ -583,6 +593,7 @@ var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new 
     'uniform float uSwell; uniform float uDark; uniform float uFogD; uniform float uBolt;',
     'varying vec3 vW; varying float vH;',
     WAVE_GLSL,
+    SHOULDER_GLSL,
     // Feinkraeusel nur fuer die Beleuchtung - keine Hoehe, damit CPU und GPU gleich bleiben.
     'vec3 ripple(vec2 p, float t){',
     '  float a = sin(p.x*0.92 + t*3.4) * 0.5 + sin((p.x+p.y)*0.67 - t*2.7) * 0.4;',
@@ -602,9 +613,10 @@ var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new 
     '  float fres = pow(1.0 - max(dot(n,V),0.0), 3.6);',
     '  vec3 H = normalize(uSun + V);',
     '  float nh = max(dot(n,H),0.0);',
-    '  float spec = pow(nh, 420.0) * 4.2 + pow(nh, 34.0) * 0.30;',
-    '  vec3 deep = mix(vec3(0.026,0.085,0.165), vec3(0.019,0.044,0.068), uDark);',
-    '  vec3 shal = mix(vec3(0.072,0.365,0.445), vec3(0.088,0.225,0.262), uDark);',
+    '  float spec = pow(nh, 420.0) * 3.0 + pow(nh, 34.0) * 0.26;',
+    '  spec = spec / (1.0 + spec * 0.7);',                          // Glanzlicht deckeln
+    '  vec3 deep = mix(vec3(0.032,0.100,0.188), vec3(0.023,0.052,0.078), uDark);',
+    '  vec3 shal = mix(vec3(0.090,0.405,0.487), vec3(0.100,0.248,0.288), uDark);',
     '  float hn = clamp(vH/(2.6*uSwell) + 0.50, 0.0, 1.0);',
     '  vec3 col = mix(deep, shal, hn);',
     '  float sss = pow(hn, 3.0) * max(0.0, dot(-V, uSun)*0.5+0.5);',
@@ -618,6 +630,7 @@ var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new 
     '  float crest = smoothstep(0.025, 0.075, 1.0-n.y) * uDark * 0.45;',
     '  col = mix(col, vec3(0.94,0.95,0.97), clamp(foam + crest, 0.0, 1.0));',
     '  col += uBolt * 0.30 * (0.35 + n.y * 0.65) * vec3(0.82,0.88,1.0);',   // Blitz auf dem Wasser
+    '  col = shoulder3(col);',
     '  float f = 1.0 - exp(-pow(d*uFogD, 2.0));',
     '  gl_FragColor = vec4(mix(col, uFog, clamp(f,0.0,1.0)), 1.0);',
     '}'
@@ -672,7 +685,7 @@ var glare = (function () {
   x.fillStyle = g; x.fillRect(0, 0, 256, 256);
   var sp = new THREE.Sprite(new THREE.SpriteMaterial({
     map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false,
-    blending: THREE.AdditiveBlending, fog: false, opacity: 0.45
+    blending: THREE.AdditiveBlending, fog: false, opacity: 0.30
   }));
   sp.scale.set(880, 880, 1);
   scene.add(sp);
@@ -862,10 +875,11 @@ var ramps = [];
   }
 })();
 
-// ---------- Actionpunkte: Wrack und Felsentor ---------------
-// Beide sind reine Durchfahrten: zwei Rundkollider links und rechts,
-// dazwischen die Luecke. Die Kollision laeuft ueber dieselbe Liste wie die Felsen.
-var passages = [];
+// ---------- Actionpunkte: Riffslalom und Felsentor ----------
+// Das Tor ist eine Durchfahrt aus zwei Rundkollidern mit Luecke,
+// der Slalom eine Reihe einzelner Nadeln im Wechsel. Beides haengt
+// an derselben Kollisionsliste wie die Felsen.
+var passages = [], reef = [];
 (function () {
   var plankM = new THREE.MeshPhongMaterial({ color: 0x4a3a2a, shininess: 10, flatShading: true });
   var ribM = new THREE.MeshPhongMaterial({ color: 0x3b2f22, shininess: 14, flatShading: true });
@@ -873,58 +887,10 @@ var passages = [];
   var ragM = new THREE.MeshPhongMaterial({ color: 0x9a8e72, shininess: 4, side: THREE.DoubleSide });
   var rockM = new THREE.MeshPhongMaterial({ color: 0x5a6870, shininess: 12, flatShading: true });
 
-  // --- Schiffswrack quer im Wasser, Durchfahrt in der Bruchstelle ---
-  var wi = 122, wp = TRACK[wi], wt = TAN[wi], wr = rightOf(wt);
-  var wg = new THREE.Group();
-  for (var side = -1; side <= 1; side += 2) {
-    var hull = new THREE.Mesh(new THREE.BoxGeometry(16, 9.5, 8.5), plankM);
-    hull.position.set(side * 17, 1.2, 0);
-    hull.rotation.z = side * 0.30;
-    hull.rotation.x = 0.1 * side;
-    wg.add(hull);
-    var top = new THREE.Mesh(new THREE.BoxGeometry(14, 1.1, 8.8), algaeM);
-    top.position.set(side * 17.6, 5.8, 0);
-    top.rotation.z = side * 0.30; wg.add(top);
-    // gesplitterte Bruchkante zur Luecke hin
-    for (var sp = 0; sp < 5; sp++) {
-      var shard = new THREE.Mesh(new THREE.BoxGeometry(0.7, 2.2 + Math.random() * 3.4, 1.1), plankM);
-      shard.position.set(side * (10.2 + Math.random()), 3.6 + Math.random() * 2.4, -3.4 + sp * 1.7);
-      shard.rotation.z = side * (0.2 + Math.random() * 0.35);
-      wg.add(shard);
-    }
-  }
-  // Spantenbogen ueber der Durchfahrt
-  for (var rb = 0; rb < 4; rb++) {
-    var arc = Math.PI * (0.62 + rb * 0.08);
-    var rib = new THREE.Mesh(new THREE.TorusGeometry(15 - rb * 0.5, 0.44, 6, 14, arc), ribM);
-    rib.position.set(0, 0.4, -3.6 + rb * 2.4);
-    rib.rotation.z = (Math.PI - arc) / 2;
-    wg.add(rib);
-  }
-  var mast = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.8, 34, 8), plankM);
-  mast.position.set(-4, 9.5, 5.5);
-  mast.rotation.set(0.35, 0, 1.05); wg.add(mast);
-  for (var rg2 = 0; rg2 < 3; rg2++) {
-    var rag = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.5), ragM);
-    rag.position.set(-10 + rg2 * 7, 7.5 - rg2 * 1.2, 5.2);
-    rag.rotation.set(0.2, 0.4 - rg2 * 0.3, 0.15); wg.add(rag);
-  }
-  wg.position.set(wp.x, 0, wp.z);
-  wg.rotation.y = Math.atan2(wt.x, wt.z) + Math.PI / 2;   // quer zur Fahrtrichtung
-  scene.add(wg);
-  // Kollider weit genug auseinander: freie Luecke rund 15 Einheiten
-  for (side = -1; side <= 1; side += 2) {
-    rocks.push({ x: wp.x + wr.x * side * 16, z: wp.z + wr.z * side * 16, r: 5.4, o: null });
-  }
-  passages.push({
-    x: wp.x, z: wp.z, r: 8.5, cd: 0, name: 'WRACK', o: wg, sink: 0.5,
-    rx: wr.x, rz: wr.z
-  });
-
   // --- Felsentor ---
   var ai = 384, ap = TRACK[ai], at = TAN[ai], ar = rightOf(at);
   var ag = new THREE.Group();
-  for (side = -1; side <= 1; side += 2) {
+  for (var side = -1; side <= 1; side += 2) {
     var pil = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 6.2, 22, 7), rockM);
     pil.position.set(side * 14, 6, 0);
     pil.rotation.z = -side * 0.09; ag.add(pil);
@@ -943,6 +909,32 @@ var passages = [];
     x: ap.x, z: ap.z, r: 8.0, cd: 0, name: 'FELSENTOR', o: ag, sink: 0.15,
     rx: ar.x, rz: ar.z
   });
+
+  // --- Riffslalom: Nadeln im Wechsel, einzeln stehend ---
+  var spireM = new THREE.MeshPhongMaterial({ color: 0x6b7a80, shininess: 20, flatShading: true });
+  var capM = new THREE.MeshPhongMaterial({ color: 0x3d5a48, shininess: 14, flatShading: true });
+  var surfM2 = new THREE.MeshBasicMaterial({ color: 0xdff4ff, transparent: true, opacity: 0.42 });
+  for (var sl = 0; sl < 6; sl++) {
+    var si2 = (108 + sl * 17) % NS;
+    var sp2 = TRACK[si2], sr2 = rightOf(TAN[si2]);
+    var soff = (sl % 2 === 0 ? 1 : -1) * 13.5;
+    var sx2 = sp2.x + sr2.x * soff, sz2 = sp2.z + sr2.z * soff;
+    var sg = new THREE.Group();
+    var h2 = 13 + Math.random() * 7;
+    var spire = new THREE.Mesh(new THREE.ConeGeometry(4.0, h2, 6, 1), spireM);
+    spire.position.y = h2 / 2 - 2.5;
+    spire.rotation.y = Math.random() * 3;
+    spire.rotation.z = (Math.random() - 0.5) * 0.16;
+    sg.add(spire);
+    var cap = new THREE.Mesh(new THREE.ConeGeometry(1.7, 3.2, 6), capM);
+    cap.position.y = h2 - 3.4; sg.add(cap);
+    var col2 = new THREE.Mesh(new THREE.RingGeometry(4.2, 6.6, 18), surfM2);
+    col2.rotation.x = -Math.PI / 2; col2.position.y = 0.3; sg.add(col2);
+    sg.position.set(sx2, 0, sz2);
+    scene.add(sg);
+    rocks.push({ x: sx2, z: sz2, r: 3.9, o: null });
+    reef.push({ o: sg, x: sx2, z: sz2 });
+  }
 })();
 
 // ---------- Grogfaesser -------------------------------------
@@ -1063,7 +1055,7 @@ function makeSki(cA, cB) {
   var noz = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.2, 0.44, 12), darkM);
   noz.rotation.x = Math.PI / 2; noz.position.set(0, 0.34, -1.92); g.add(noz);
   var flame = new THREE.Mesh(new THREE.ConeGeometry(0.24, 1.5, 10), new THREE.MeshBasicMaterial({
-    color: 0x8fe9ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false
+    color: 0x8fe9ff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false
   }));
   flame.rotation.x = Math.PI / 2; flame.position.set(0, 0.34, -2.5);
   flame.visible = false; g.add(flame);
@@ -1189,7 +1181,7 @@ function makePS(count, size, blending, tex, opacity) {
     }
   };
 }
-var PS_SPRAY = makePS(1100, 1.9, THREE.AdditiveBlending, blobTex(1, 0.6));
+var PS_SPRAY = makePS(1100, 1.9, THREE.AdditiveBlending, blobTex(1, 0.6), 0.58);
 var PS_FOAM = makePS(700, 4.4, THREE.NormalBlending, blobTex(0.5, 0.24), 0.7);
 
 // ---------- Kielwasser als Band auf der Wasseroberflaeche ----
@@ -1206,7 +1198,7 @@ function makeWake() {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setIndex(idx);
   var m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.5,
+    vertexColors: true, transparent: true, opacity: 0.3,
     blending: THREE.AdditiveBlending, depthWrite: false,
     side: THREE.DoubleSide, fog: false
   }));
@@ -1599,7 +1591,7 @@ function stepRacer(r, inp, dt, t) {
     if (qx * qx + qz * qz < pg.r * pg.r && r.isPlayer && pg.cd <= 0) {
       pg.cd = 3;
       addScore(r, 350, 'DURCH: ' + pg.name, 'p');
-      flash(pg.name === 'WRACK' ? 'DURCHS WRACK!' : 'FELSENTOR!', 'hot');
+      flash(pg.name + '!', 'hot');
       sfx.chime(); sfx.sting(true);
     }
   }
@@ -2614,10 +2606,10 @@ function distToSeg(px, pz, ax, az, bx, bz) {
 // Steuert Seegang, Licht, Sicht, Regen, Blitze, Wind und Musik.
 // ============================================================
 var PHASES = [
-  { n: 'GOLDENE STUNDE', swell: 1.00, dark: 0.00, rain: 0.00, fog: 0.00140, wind: 0.0, mus: 1 },
-  { n: 'BOEEN ZIEHEN AUF', swell: 1.32, dark: 0.36, rain: 0.12, fog: 0.00190, wind: 1.6, mus: 2 },
-  { n: 'REGEN', swell: 1.62, dark: 0.64, rain: 0.62, fog: 0.00250, wind: 3.0, mus: 2 },
-  { n: 'GEWITTER', swell: 2.00, dark: 0.90, rain: 1.00, fog: 0.00300, wind: 4.6, mus: 3 }
+  { n: 'GOLDENE STUNDE', swell: 1.00, dark: 0.00, rain: 0.00, fog: 0.00140, wind: 0.0, sunY: 0.135, mus: 1 },
+  { n: 'BOEEN ZIEHEN AUF', swell: 1.32, dark: 0.36, rain: 0.12, fog: 0.00190, wind: 1.6, sunY: 0.104, mus: 2 },
+  { n: 'REGEN', swell: 1.62, dark: 0.64, rain: 0.62, fog: 0.00250, wind: 3.0, sunY: 0.072, mus: 2 },
+  { n: 'GEWITTER', swell: 2.00, dark: 0.90, rain: 1.00, fog: 0.00300, wind: 4.6, sunY: 0.040, mus: 3 }
 ];
 var WEATHER_LINES = [
   '', 'Der Wind dreht. Halt dich fest.',
@@ -2747,6 +2739,10 @@ var weather = {
       if (k === 'n') continue;
       c[k] += (t[k] - c[k]) * mix;
     }
+    // Die Sonne sinkt ueber das Rennen. SUN ist dasselbe Objekt, das in
+    // den Shader-Uniforms haengt - Aendern reicht, kein Neusetzen noetig.
+    SUN.set(0.30, c.sunY, -0.945).normalize();
+    sunLight.position.copy(SUN).multiplyScalar(600);
     SWELL = c.swell;
     waterUni.uSwell.value = c.swell;
     waterUni.uDark.value = c.dark;
@@ -2759,7 +2755,7 @@ var weather = {
     sunLight.intensity = 1.6 * (1 - c.dark * 0.82);
     hemi.intensity = 0.95 * (1 - c.dark * 0.42) + this.bolt * 1.4;
     rim.intensity = 0.5 + c.dark * 0.5;
-    glare.material.opacity = 0.45 * (1 - c.dark);
+    glare.material.opacity = 0.30 * (1 - c.dark);
     for (var i = 0; i < clouds.length; i++) {
       var cl = clouds[i];
       cl.o.material.color.copy(cl.base).lerp(
@@ -3104,7 +3100,7 @@ function playerInput() {
 
 // ---------- Rennablauf --------------------------------------
 var state = 'menu', raceT = 0, cdT = 0, shake = 0, shock = 0, flashFx = 0, T = 0;
-var startWin = 0, startUsed = false, lastRank = 0, overtakeCd = 0;
+var startWin = 0, startUsed = false, lastRank = 0, overtakeCd = 0, slowmo = 0;
 var TRACK_LEN = curve.getLength();
 
 function startRace(wantFull) {
@@ -3114,7 +3110,7 @@ function startRace(wantFull) {
   weather.reset();
   if (elWeather) elWeather.textContent = PHASES[0].n;
   raceT = 0; cdT = 2.999; state = 'countdown'; shake = 0; shock = 0;
-  startUsed = false; startWin = 0; lastRank = 0; overtakeCd = 0;
+  startUsed = false; startWin = 0; lastRank = 0; overtakeCd = 0; slowmo = 0;
   elTitle.className = 'screen hide';
   elResult.className = 'screen hide';
   elHud.className = 'on';
@@ -3150,6 +3146,7 @@ function ranking() {
 }
 function endRace() {
   state = 'done';
+  slowmo = 1.5;                      // Zieleinlauf in Zeitlupe
   sfx.idle(); sfx.music(1);
   var rank = ranking(), place = rank.indexOf(player) + 1;
   // Fotofinish: liegt der naechste Fahrer unter einer Drittelsekunde?
@@ -3235,7 +3232,7 @@ function orientRacer(r, inpSteer, dt) {
   }
   // Bugfontaenen gehen mit dem Tempo auf
   var sheets = r.mesh.userData.sheets;
-  var shOp = r.air ? 0 : clamp((Math.abs(r.vf) - 12) / 48, 0, 1) * 0.55;
+  var shOp = r.air ? 0 : clamp((Math.abs(r.vf) - 12) / 48, 0, 1) * 0.32;
   for (var si = 0; si < 2; si++) {
     sheets[si].material.opacity = shOp;
     var sc2 = 0.55 + shOp * 2.3;
@@ -3243,7 +3240,7 @@ function orientRacer(r, inpSteer, dt) {
   }
   // Schaumkranz an der Wasserlinie
   var collar = r.mesh.userData.collar;
-  collar.material.opacity = r.air ? 0 : (0.16 + clamp(Math.abs(r.vf) / TOP_V, 0, 1) * 0.42);
+  collar.material.opacity = r.air ? 0 : (0.10 + clamp(Math.abs(r.vf) / TOP_V, 0, 1) * 0.26);
   var cs = 0.8 + clamp(Math.abs(r.vf) / TOP_V, 0, 1) * 0.45;
   collar.scale.set(cs, cs * 1.12, 1);
 
@@ -3460,6 +3457,9 @@ function animateProps(dt) {
     var hs = 1 + Math.sin(T * 3 + gb.ph) * 0.07;
     gb.halo.scale.set(hs, hs, hs);
   }
+  for (i = 0; i < reef.length; i++) {
+    reef[i].o.position.y = waveAt(reef[i].x, reef[i].z, T) - 1.4;
+  }
   for (i = 0; i < passages.length; i++) {
     var pg = passages[i];
     pg.cd = Math.max(0, pg.cd - dt);
@@ -3489,6 +3489,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   var dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  if (slowmo > 0) { slowmo -= dt; dt *= 0.4; }
   T += dt;
   waterUni.uTime.value = T;
   tickMiss(dt);
