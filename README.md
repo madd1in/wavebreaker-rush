@@ -74,19 +74,29 @@ Am Handy: Daumenpad links, Turbo/Hop/Bremse rechts, Gas läuft automatisch.
 
 ## Actionpunkte
 
-- **Schiffswrack** — liegt quer im Wasser, die Bruchstelle in der Mitte ist die
-  Durchfahrt. Spantenbogen über dem Kopf, Fetzen im Wind, links und rechts Rumpf.
-- **Felsentor** — dasselbe Prinzip aus Stein, enger.
+- **Felsentor** — zwei Pfeiler mit Bogen, dazwischen die Durchfahrt. Sauber
+  hindurch gibt Punkte.
+- **Riffslalom** — sechs Felsnadeln im Wechsel links und rechts der Ideallinie.
+  Eng vorbei gibt Style, dagegen kostet Tempo.
 - **Holzrampen** auf Fasspontons an vier Stellen der Strecke.
 
-Beide Durchfahrten sind reine Lückenkollision: zwei Rundkollider links und rechts,
-dazwischen Platz. Kommt die KI in die Nähe eines Tors, peilt sie gezielt die Mitte an —
-sonst würden sich ihre beiden Ausweichimpulse gegenseitig aufheben.
+Das Tor ist eine Lückenkollision aus zwei Rundkollidern. Kommt die KI in seine Nähe,
+peilt sie gezielt die Mitte an — sonst würden sich ihre beiden Ausweichimpulse
+gegenseitig aufheben.
 
 Kollisionen lenken am Hindernis entlang, statt davor stehen zu bleiben: nur der Anteil
 der Geschwindigkeit senkrecht zur Wand geht verloren. Zusätzlich zieht eine
 Trichterhilfe in Tornähe seitlich zur Mitte. Beides zusammen verhindert das Verkeilen
-zwischen zwei Kollidern, das eine engere Lückenversion hatte.
+zwischen zwei Kollidern.
+
+### Warum die Belichtung an der Quelle geregelt wird
+
+Die Renderziele haben 8 Bit und der Renderer macht kein Tone Mapping. Was im
+Szenen-Shader über 1,0 landet — Sonnenglanz auf dem Wasser, die Sonnenscheibe, additive
+Gischt — ist danach flach abgeschnitten und im Post-Effekt nicht mehr zu retten. Die
+weiche Schulterkurve (`shoulder()`) sitzt deshalb in Wasser-Shader, Himmels-Shader
+**und** am Ende der Post-Kette. Wer neue additive Effekte einbaut, addiert vor dieser
+Zeile und hält die Deckkraft niedrig.
 
 ## Technik
 
