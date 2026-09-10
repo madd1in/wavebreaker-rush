@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
-<meta name="description" content="Arcade-Jetski-Rennen im Browser: Geist der Bestrunde, drei Kameraansichten, aufziehendes Gewitter und schwere See mit Surf-Physik. Three.js, WebGL, eine Datei.">
+<meta name="description" content="Arcade-Jetski-Rennen im Browser mit zwei Strecken: Korallenbucht bei Sonnenuntergang und Schattenfeste auf einem Lavasee. Three.js, WebGL, eine Datei.">
 <meta name="theme-color" content="#03101a">
 <meta property="og:title" content="Wavebreaker Rush">
-<meta property="og:description" content="Arcade-Jetski-Rennen auf schwerer See. Three.js, WebGL, eine Datei.">
+<meta property="og:description" content="Arcade-Jetski-Rennen: Korallenbucht und Lavafestung. Three.js, WebGL, eine Datei.">
 <meta property="og:type" content="website">
 <title>Wavebreaker Rush</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -296,6 +296,11 @@ th.tm{text-align:right;padding-right:0}
     <div class="key"><kbd>F</kbd> Vollbild</div>
     <div class="key"><kbd>M</kbd> Sound</div>
     <div class="key"><kbd>R</kbd> Neustart</div>
+  </div>
+  <div class="picker">
+    <span class="plabel">STRECKE</span>
+    <button class="pick trk sel" data-t="0">KORALLENBUCHT</button>
+    <button class="pick trk" data-t="1">SCHATTENFESTE</button>
   </div>
   <div class="picker">
     <span class="plabel">SCHWIERIGKEIT</span>
@@ -588,14 +593,17 @@ var ENV_TEX = (function () {
 })();
 
 // ---------- Himmel ------------------------------------------
-var skyUni = { uSun: { value: SUN }, uDark: { value: 0 }, uBolt: { value: 0 }, uTime: { value: 0 } };
+var skyUni = {
+  uSun: { value: SUN }, uDark: { value: 0 }, uBolt: { value: 0 },
+  uTime: { value: 0 }, uLava: { value: 0 }
+};
 var sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 32, 18), new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, fog: false,
   uniforms: skyUni,
   vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: [
     'uniform vec3 uSun; uniform float uDark; uniform float uBolt; uniform float uTime;',
-    'varying vec3 vDir;',
+    'uniform float uLava; varying vec3 vDir;',
     SHOULDER_GLSL,
     // Sterne auf einem Hashgitter, blinken leicht und kommen erst mit der Dunkelheit
     'float stars(vec3 d, float t){',
@@ -616,7 +624,14 @@ var sky = new THREE.Mesh(new THREE.SphereGeometry(3400, 32, 18), new THREE.Shade
     '  float d = max(dot(normalize(vDir), uSun), 0.0);',
     '  c += (1.0 - uDark*0.88) * vec3(1.0,0.72,0.36) * (pow(d,900.0)*3.0 + pow(d,26.0)*0.40 + pow(d,4.0)*0.15);',
     '  c += (1.0 - uDark) * vec3(1.0,0.52,0.26) * pow(1.0-h, 15.0) * 0.26;',
-    '  c += stars(normalize(vDir), uTime) * uDark * clamp(vDir.y*2.2, 0.0, 1.0) * 1.15;',
+    // Festung: Rauchdecke ueber Glutschein, keine Sonne
+    '  if (uLava > 0.5) {',
+    '    vec3 hz = vec3(0.46,0.115,0.030), md = vec3(0.105,0.048,0.052), zn = vec3(0.022,0.014,0.028);',
+    '    c = mix(hz, md, pow(h,0.46));',
+    '    c = mix(c, zn, pow(h,1.5));',
+    '    c += vec3(0.92,0.26,0.05) * pow(1.0-h, 8.0) * 0.55;',
+    '  }',
+    '  c += stars(normalize(vDir), uTime) * uDark * clamp(vDir.y*2.2, 0.0, 1.0) * 1.15 * (1.0 - uLava*0.65);',
     '  c += uBolt * (0.35 + 0.65*pow(h,0.5)) * vec3(0.86,0.90,1.0);',
     '  gl_FragColor = vec4(shoulder3(c),1.0);',
     '}'
@@ -630,7 +645,8 @@ var lowEnd = (window.innerWidth * PR) < 1100;
 var segs = lowEnd ? 170 : 264;
 var waterUni = {
   uTime: { value: 0 }, uSun: { value: SUN }, uFog: { value: new THREE.Color(C_FOG) },
-  uSwell: { value: 1 }, uDark: { value: 0 }, uFogD: { value: 0.0014 }, uBolt: { value: 0 }
+  uSwell: { value: 1 }, uDark: { value: 0 }, uFogD: { value: 0.0014 }, uBolt: { value: 0 },
+  uLava: { value: 0 }
 };
 var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new THREE.ShaderMaterial({
   uniforms: waterUni, fog: false,
@@ -647,6 +663,7 @@ var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new 
   fragmentShader: [
     'uniform float uTime; uniform vec3 uSun; uniform vec3 uFog;',
     'uniform float uSwell; uniform float uDark; uniform float uFogD; uniform float uBolt;',
+    'uniform float uLava;',
     'varying vec3 vW; varying float vH;',
     WAVE_GLSL,
     SHOULDER_GLSL,
@@ -686,6 +703,20 @@ var water = new THREE.Mesh(new THREE.PlaneGeometry(2800, 2800, segs, segs), new 
     '  float crest = smoothstep(0.025, 0.075, 1.0-n.y) * uDark * 0.45;',
     '  col = mix(col, vec3(0.94,0.95,0.97), clamp(foam + crest, 0.0, 1.0));',
     '  col += uBolt * 0.30 * (0.35 + n.y * 0.65) * vec3(0.82,0.88,1.0);',   // Blitz auf dem Wasser
+    // Lavavariante: dunkle Kruste, die an den Flanken aufreisst
+    '  if (uLava > 0.5) {',
+    '    float rip = smoothstep(0.004, 0.030, 1.0 - n.y);',        // Flanken reissen auf
+    '    float hh = clamp(vH/(3.4*uSwell)*0.5 + 0.5, 0.0, 1.0);',
+    '    float mot = 0.5 + 0.5*sin(vW.x*0.021 + uTime*0.35) * sin(vW.z*0.017 - uTime*0.27);',
+    '    vec3 crust = mix(vec3(0.105,0.048,0.038), vec3(0.190,0.080,0.052), hh);',
+    '    vec3 glow = vec3(1.00,0.38,0.07);',
+    '    float pulse = 0.5 + 0.5*sin(uTime*1.6 + vW.x*0.045 + vW.z*0.037);',
+    '    col = mix(crust, glow, clamp(rip*0.85 + pow(hh,3.0)*0.5 + mot*0.22, 0.0, 1.0));',
+    '    col += glow * 0.20 * pulse * rip;',
+    '    col += glow * 0.10 * mot;',                                // treibende Glutfelder
+    '    col += vec3(1.0,0.58,0.22) * spec * 0.45;',
+    '    col += uBolt * vec3(0.9,0.35,0.08) * 0.5;',
+    '  }',
     '  col = shoulder3(col);',
     '  float f = 1.0 - exp(-pow(d*uFogD, 2.0));',
     '  gl_FragColor = vec4(mix(col, uFog, clamp(f,0.0,1.0)), 1.0);',
@@ -748,20 +779,43 @@ var glare = (function () {
   return sp;
 })();
 
-// ---------- Kurs --------------------------------------------
-var CTRL = [[0,-430],[300,-372],[456,-118],[394,152],[186,316],[-70,356],[-276,262],[-441,44],[-416,-232],[-206,-410]];
-var curve = new THREE.CatmullRomCurve3(CTRL.map(function (p) {
-  return new THREE.Vector3(p[0], 0, p[1]);
-}), true, 'catmullrom', 0.5);
-var TRACK = [], TAN = [], STRAIGHT = [];
-for (var i = 0; i < NS; i++) {
-  TRACK.push(curve.getPointAt(i / NS));
-  TAN.push(curve.getTangentAt(i / NS).normalize());
-}
-for (i = 0; i < NS; i++) STRAIGHT.push(Math.max(0, TAN[i].dot(TAN[(i + 26) % NS])));
+// ---------- Kurse -------------------------------------------
+// Zwei Strecken. Alles Streckengebundene wird in eine eigene Gruppe
+// gebaut; dafuer wird scene.add waehrend des Aufbaus umgelenkt, damit
+// keine der Aufbau-Funktionen ihr Ziel kennen muss.
 function rightOf(t) { return new THREE.Vector3(t.z, 0, -t.x); }
+function buildTrack(ctrl) {
+  var c = new THREE.CatmullRomCurve3(ctrl.map(function (p) {
+    return new THREE.Vector3(p[0], 0, p[1]);
+  }), true, 'catmullrom', 0.5);
+  var tr = [], tn = [], st = [];
+  for (var i = 0; i < NS; i++) {
+    tr.push(c.getPointAt(i / NS));
+    tn.push(c.getTangentAt(i / NS).normalize());
+  }
+  for (i = 0; i < NS; i++) st.push(Math.max(0, tn[i].dot(tn[(i + 26) % NS])));
+  return { curve: c, TRACK: tr, TAN: tn, STRAIGHT: st, len: c.getLength() };
+}
+var CTRL_BAY = [[0,-430],[300,-372],[456,-118],[394,152],[186,316],[-70,356],[-276,262],[-441,44],[-416,-232],[-206,-410]];
+var CTRL_KEEP = [[0,-336],[214,-300],[336,-118],[292,96],[118,252],[-84,300],[-252,208],[-336,18],[-292,-192],[-152,-304]];
+
+var WORLDS = [
+  { n: 'KORALLENBUCHT', t: buildTrack(CTRL_BAY), g: new THREE.Group(), lava: 0 },
+  { n: 'SCHATTENFESTE', t: buildTrack(CTRL_KEEP), g: new THREE.Group(), lava: 1 }
+];
+scene.add(WORLDS[0].g); scene.add(WORLDS[1].g);
+
+var _sceneAdd = scene.add.bind(scene);
+function buildInto(g) { scene.add = function (o) { g.add(o); return scene; }; }
+function buildDone() { scene.add = _sceneAdd; }
+
+// Zeiger auf die aktive Strecke - werden von setWorld() umgehaengt
+var curve = WORLDS[0].t.curve, TRACK = WORLDS[0].t.TRACK;
+var TAN = WORLDS[0].t.TAN, STRAIGHT = WORLDS[0].t.STRAIGHT;
+var worldIdx = 0;
 
 // ---------- Bojen, Ringe, Schubfelder -----------------------
+buildInto(WORLDS[0].g);
 var buoys = [], rings = [], pads = [], GATE_STEP = Math.floor(NS / GATES);
 (function () {
   var bodyGeo = new THREE.CylinderGeometry(0.85, 1.2, 3.6, 12);
@@ -1038,6 +1092,11 @@ var grogs = [];
     grogs.push({ o: g, x: x, z: z, ph: Math.random() * 6.3, gone: 0, halo: halo });
   }
 })();
+buildDone();
+WORLDS[0].props = {
+  buoys: buoys, rings: rings, pads: pads, ramps: ramps,
+  grogs: grogs, reef: reef, passages: passages, rocks: rocks
+};
 
 // ---------- Hilfsfunktionen ---------------------------------
 function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -1940,6 +1999,22 @@ var sfx = (function () {
     523.25, 0, 659.25, 0, 830.61, 0, 659.25, 0, 493.88, 0, 415.30, 0, 493.88, 0, 659.25, 0,
     880.00, 0, 0, 783.99, 659.25, 0, 587.33, 0, 523.25, 0, 493.88, 440.00, 0, 0, 0, 0
   ];
+  // Zweites Klangbild fuer die Schattenfeste: d-Moll, Blech statt Steel Drum
+  var mtheme = 0;
+  var CH_K = [
+    [146.83, [293.66, 349.23, 440.00]],   // 0 Dm
+    [116.54, [233.08, 293.66, 349.23]],   // 1 Bb
+    [130.81, [261.63, 329.63, 392.00]],   // 2 C
+    [98.00, [196.00, 233.08, 293.66]],    // 3 Gm
+    [110.00, [220.00, 277.18, 329.63]]    // 4 A
+  ];
+  var PROG_K = [0, 1, 2, 0, 3, 4, 0, 4];
+  var MEL_K = [
+    587.33, 0, 0, 523.25, 466.16, 0, 440.00, 0, 587.33, 0, 698.46, 0, 659.25, 0, 587.33, 0,
+    466.16, 0, 0, 440.00, 392.00, 0, 440.00, 0, 466.16, 0, 587.33, 0, 523.25, 0, 466.16, 0,
+    523.25, 0, 0, 587.33, 659.25, 0, 698.46, 0, 783.99, 0, 0, 698.46, 659.25, 0, 587.33, 0,
+    440.00, 0, 466.16, 0, 587.33, 0, 0, 659.25, 587.33, 0, 523.25, 0, 466.16, 0, 440.00, 0
+  ];
   var noiseBuf = null;
 
   function init() {
@@ -2021,22 +2096,33 @@ var sfx = (function () {
       var cyc = Math.floor(step16 / 128) % 4;       // vier Durchgaenge = 32 Takte Form
       var sec = cyc % 2;                            // A- und B-Thema loesen sich ab
       var s = step16 % 16;
-      var ch = CH[PROG[bar]];
+      var ch = (mtheme ? CH_K : CH)[(mtheme ? PROG_K : PROG)[bar]];
       var fill = (bar === 7 && s >= 12);            // Fill in den letzten vier Sechzehnteln
       var brk = (cyc === 3 && bar < 4);             // Breakdown im letzten Durchgang
 
       if (BASS[s]) tone(nextT, ch[0] * BSTEP[BASSN[s]], spb * 2.0, 'sawtooth', brk ? 0.24 : 0.32, mus);
       if (KICK[s] && !fill && !brk) tone(nextT, 146, 0.17, 'sine', 0.62, mus, 44);
       if (SNAR[s] && !fill && !brk) hit(nextT, 0.10, 0.14, 1500, mus);
-      if (CONG[s] && !brk) tone(nextT, s % 4 === 3 ? 330 : 210, 0.12, 'sine', 0.22, mus, 150);
-      if (s % 2 === 1) hit(nextT, 0.026, intensity > 1 ? 0.055 : 0.04, 8000, mus);
-      if (SKNK[s] && !fill && !brk) for (var v = 0; v < 3; v++) tone(nextT, ch[1][v], spb * 0.62, 'square', 0.055, mus);
+      if (CONG[s] && !brk) tone(nextT, s % 4 === 3 ? (mtheme ? 188 : 330) : (mtheme ? 116 : 210),
+        mtheme ? 0.2 : 0.12, 'sine', 0.22, mus, mtheme ? 74 : 150);
+      if (s % 2 === 1) hit(nextT, 0.026, intensity > 1 ? 0.055 : 0.04, mtheme ? 9600 : 8000, mus);
+      if (SKNK[s] && !fill && !brk) {
+        for (var v = 0; v < 3; v++) {
+          tone(nextT, ch[1][v] * (mtheme ? 0.5 : 1), spb * 0.62, mtheme ? 'sawtooth' : 'square',
+            mtheme ? 0.05 : 0.055, mus);
+        }
+      }
       if (brk && s === 0) tone(nextT, ch[1][0], spb * 15.0, 'triangle', 0.07, mus);   // Flaeche im Breakdown
 
-      var m = (sec ? MEL_B : MEL_A)[step16 % 64];
+      var m = mtheme ? MEL_K[step16 % 64] : (sec ? MEL_B : MEL_A)[step16 % 64];
       if (m && !fill) {
-        tone(nextT, m, spb * 2.6, 'triangle', 0.125, mus);
-        tone(nextT, m * 2.01, spb * 1.1, 'sine', 0.05, mus);   // Obertonschimmer der Steel Drum
+        if (mtheme) {
+          tone(nextT, m, spb * 2.4, 'sawtooth', 0.085, mus);
+          tone(nextT, m * 0.5, spb * 2.8, 'square', 0.045, mus);
+        } else {
+          tone(nextT, m, spb * 2.6, 'triangle', 0.125, mus);
+          tone(nextT, m * 2.01, spb * 1.1, 'sine', 0.05, mus); // Obertonschimmer der Steel Drum
+        }
       }
       // Gegenstimme antwortet im B-Teil in den Melodiepausen
       if (sec && intensity > 1 && !m && (s === 4 || s === 12)) {
@@ -2063,6 +2149,7 @@ var sfx = (function () {
     init: init,
     isOn: function () { return on; },
     toggle: function () { on = !on; if (master) master.gain.value = on ? 0.55 : 0; return on; },
+    theme: function (i) { mtheme = i ? 1 : 0; },
     music: function (level) {
       if (!ctx) return;
       intensity = level > 2 ? 3 : (level > 1 ? 2 : 1);
@@ -2229,6 +2316,7 @@ var LINES = {
   ]
 };
 
+buildInto(WORLDS[0].g);      // Fauna und Flotte gehoeren zur Bucht
 var fleetMats = {
   wood: new THREE.MeshPhongMaterial({ color: 0x4a3324, shininess: 18, flatShading: true }),
   deck: new THREE.MeshPhongMaterial({ color: 0x8a6438, shininess: 12 }),
@@ -2515,6 +2603,8 @@ var flyfish = (function () {
   return { list: list, cd: 0, head: 0 };
 })();
 
+buildDone();
+
 // ---------- Bewegung & Wechselwirkung -----------------------
 var _fv = new THREE.Vector3();
 fauna = {
@@ -2529,7 +2619,7 @@ fauna = {
 
   // Hoehe des Walruckens ueber der Wasserlinie - 0 wenn er abgetaucht ist
   deckAt: function (x, z) {
-    if (whale.up <= 0.05) return 0;
+    if (worldIdx !== 0 || whale.up <= 0.05) return 0;
     var dx = x - whale.x, dz = z - whale.z;
     if (dx * dx + dz * dz > 400) return 0;
     var cy = Math.cos(whale.yaw), sy = Math.sin(whale.yaw);
@@ -2769,17 +2859,19 @@ function distToSeg(px, pz, ax, az, bx, bz) {
 // WETTER - zieht ueber den Rennverlauf auf
 // Steuert Seegang, Licht, Sicht, Regen, Blitze, Wind und Musik.
 // ============================================================
-var PHASES = [
+var PHASES_BAY = [
   { n: 'GOLDENE STUNDE', swell: 1.00, dark: 0.00, rain: 0.00, fog: 0.00140, wind: 0.0, sunY: 0.135, mus: 1 },
   { n: 'BOEEN ZIEHEN AUF', swell: 1.32, dark: 0.36, rain: 0.12, fog: 0.00190, wind: 1.6, sunY: 0.104, mus: 2 },
   { n: 'REGEN', swell: 1.62, dark: 0.64, rain: 0.62, fog: 0.00250, wind: 3.0, sunY: 0.072, mus: 2 },
   { n: 'GEWITTER', swell: 2.00, dark: 0.90, rain: 1.00, fog: 0.00300, wind: 4.6, sunY: 0.040, mus: 3 }
 ];
-var WEATHER_LINES = [
+var LINES_BAY = [
   '', 'Der Wind dreht. Halt dich fest.',
   'Regen. Die Bojen verschwinden im Grau.',
   'Gewitter ueber der Bucht. Jetzt wird es albern.'
 ];
+// Zeiger auf die Phasen der aktiven Strecke, umgehaengt von setWorld()
+var PHASES = PHASES_BAY, WEATHER_LINES = LINES_BAY;
 
 var FOG_CALM = new THREE.Color(0xe0a878), FOG_STORM = new THREE.Color(0x5d6b78);
 var _fogTmp = new THREE.Color(), _stormCloud = new THREE.Color(0x39414f);
@@ -2946,7 +3038,7 @@ var weather = {
       cx = player.pos.x + Math.cos(a) * rd; cz = player.pos.z + Math.sin(a) * rd;
     }
     var hy = waveAt(cx, cz, t);
-    drawBolt(cx + (Math.random() - 0.5) * 130, 330, cz + (Math.random() - 0.5) * 130, cx, hy, cz);
+    if (worldIdx === 0) drawBolt(cx + (Math.random() - 0.5) * 130, 330, cz + (Math.random() - 0.5) * 130, cx, hy, cz);
     this.boltX = cx; this.boltZ = cz;
     this.bolt = near ? 1.3 : 0.7 + Math.random() * 0.4;
     this.thunderNear = near;
@@ -3076,7 +3168,7 @@ var weather = {
       var wx = WIND.x * 0.12, wz = WIND.z * 0.12;
       for (var i = 0; i < RAIN_N; i++) {
         var d = dr[i];
-        d.y -= d.v * dt * (0.6 + this.cur.rain * 0.6);
+        d.y -= d.v * dt * (0.6 + this.cur.rain * 0.6) * (worldIdx ? 0.45 : 1);
         d.x += WIND.x * dt * 3;
         d.z += WIND.z * dt * 3;
         if (d.y < cam.y - 26) { d.y += 78; }
@@ -3114,6 +3206,476 @@ var weather = {
     }
   }
 };
+
+// ============================================================
+// SCHATTENFESTE - zweite Strecke, Lavasee in einer Festungsruine
+// Gleiche Physik, gleiche Wellenformel, anderes Gewand und andere
+// Hindernisse. Alles hier landet in WORLDS[1].g.
+// ============================================================
+(function () {
+  // Auf die Strecke der Festung umschalten und frische Listen anlegen
+  var t1 = WORLDS[1].t;
+  TRACK = t1.TRACK; TAN = t1.TAN; STRAIGHT = t1.STRAIGHT; curve = t1.curve;
+  buoys = []; rings = []; pads = []; ramps = [];
+  grogs = []; reef = []; passages = []; rocks = [];
+  buildInto(WORLDS[1].g);
+
+  var stoneM = new THREE.MeshPhongMaterial({ color: 0x3a3238, shininess: 14, flatShading: true });
+  var stoneD = new THREE.MeshPhongMaterial({ color: 0x241e24, shininess: 10, flatShading: true });
+  var ironM = new THREE.MeshPhongMaterial({ color: 0x4a3a34, shininess: 60 });
+  var emberM = new THREE.MeshPhongMaterial({ color: 0x8a2c10, emissive: 0x521200, shininess: 30 });
+  var fireM = new THREE.MeshBasicMaterial({
+    color: 0xffa63a, transparent: true, opacity: 0.85,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+  });
+  var coreM = new THREE.MeshBasicMaterial({
+    color: 0xfff0c0, transparent: true, opacity: 0.9,
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+  });
+  var padTexHot = (function () {
+    var cv = document.createElement('canvas'); cv.width = 128; cv.height = 256;
+    var x = cv.getContext('2d');
+    for (var k = 0; k < 3; k++) {
+      var y = 200 - k * 70;
+      var gr = x.createLinearGradient(0, y - 46, 0, y);
+      gr.addColorStop(0, 'rgba(255,90,20,0.95)');
+      gr.addColorStop(1, 'rgba(255,200,110,0.25)');
+      x.fillStyle = gr;
+      x.beginPath(); x.moveTo(64, y - 52); x.lineTo(116, y); x.lineTo(92, y);
+      x.lineTo(64, y - 26); x.lineTo(36, y); x.lineTo(12, y); x.closePath(); x.fill();
+    }
+    return new THREE.CanvasTexture(cv);
+  })();
+  function haloM(op) {
+    return new THREE.MeshBasicMaterial({
+      color: 0xff7a20, transparent: true, opacity: op,
+      blending: THREE.AdditiveBlending, depthWrite: false, fog: false
+    });
+  }
+
+  // ---------- Feuerpylonen als Streckenmarkierung ----------
+  var pylGeo = new THREE.CylinderGeometry(0.95, 1.6, 5.2, 6);
+  var bowlGeo = new THREE.CylinderGeometry(1.15, 0.7, 0.9, 8);
+  var lampGeo = new THREE.SphereGeometry(0.55, 8, 6);
+  var haloGeo = new THREE.SphereGeometry(2.3, 10, 8);
+  var GS = Math.floor(NS / GATES);
+  for (var g = 0; g < GATES; g++) {
+    var idx = g * GS, p = TRACK[idx], rr = rightOf(TAN[idx]);
+    var isStart = (g === 0), half = isStart ? 31 : 27;
+    for (var s = -1; s <= 1; s += 2) {
+      var grp = new THREE.Group();
+      var col = new THREE.Mesh(pylGeo, isStart ? stoneD : stoneM);
+      col.position.y = 2.6; grp.add(col);
+      var bowl = new THREE.Mesh(bowlGeo, ironM);
+      bowl.position.y = 5.5; grp.add(bowl);
+      var lampMat = new THREE.MeshBasicMaterial({
+        color: (s < 0) ? 0xffb43a : 0xff6a20, transparent: true, opacity: 0.6, fog: false
+      });
+      var lamp = new THREE.Mesh(lampGeo, lampMat);
+      lamp.position.y = 6.1; grp.add(lamp);
+      var halo = new THREE.Mesh(haloGeo, haloM(0.3));
+      halo.position.y = 6.1; grp.add(halo);
+      if (isStart) {
+        var arch = new THREE.Mesh(new THREE.BoxGeometry(1.6, 9, 1.6), stoneD);
+        arch.position.y = 6; grp.add(arch);
+      }
+      grp.position.set(p.x + rr.x * half * s, 0, p.z + rr.z * half * s);
+      scene.add(grp);
+      buoys.push({
+        o: grp, x: grp.position.x, z: grp.position.z, ph: Math.random() * 6.3, hit: 0,
+        lamp: lampMat, halo: halo.material
+      });
+    }
+    // Flammenringe und Glutfelder wie in der Bucht, nur heisser
+    if (g % 4 === 2) {
+      var rg = new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.5, 8, 24), emberM);
+      var off = (g % 8 === 2) ? 9 : -9;
+      rg.position.set(p.x + rr.x * off, 3, p.z + rr.z * off);
+      rg.rotation.y = Math.atan2(TAN[idx].x, TAN[idx].z);
+      rg.add(new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.9, 6, 20), haloM(0.34)));
+      rg.add(new THREE.Mesh(new THREE.CircleGeometry(5.0, 20), haloM(0.12)));
+      scene.add(rg);
+      rings.push({ o: rg, x: rg.position.x, z: rg.position.z, cd: 0 });
+    }
+    if (g % 4 === 0 && g > 0) {
+      var pad = new THREE.Mesh(new THREE.PlaneGeometry(9, 18), new THREE.MeshBasicMaterial({
+        map: padTexHot, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false
+      }));
+      pad.rotation.x = -Math.PI / 2;
+      pad.rotation.z = -Math.atan2(TAN[idx].x, TAN[idx].z);
+      pad.position.set(p.x, 0.2, p.z);
+      scene.add(pad);
+      pads.push({ o: pad, x: p.x, z: p.z, cd: 0 });
+    }
+  }
+
+  // ---------- Aussenmauer mit Zinnen und Tuermen ----------
+  for (var w = 0; w < NS; w += 12) {
+    var wp = TRACK[w], wt = TAN[w], wr = rightOf(wt);
+    for (var sd = -1; sd <= 1; sd += 2) {
+      var seg = new THREE.Mesh(new THREE.BoxGeometry(4.5, 17, 15), stoneM);
+      seg.position.set(wp.x + wr.x * 56 * sd, 5.5, wp.z + wr.z * 56 * sd);
+      seg.rotation.y = Math.atan2(wt.x, wt.z);
+      scene.add(seg);
+      var crn = new THREE.Mesh(new THREE.BoxGeometry(5.0, 2.4, 3.2), stoneD);
+      crn.position.set(wp.x + wr.x * 56 * sd, 14.6, wp.z + wr.z * 56 * sd);
+      crn.rotation.y = seg.rotation.y; scene.add(crn);
+    }
+  }
+  for (var tw = 0; tw < NS; tw += 100) {
+    var tp = TRACK[tw], tr2 = rightOf(TAN[tw]);
+    for (var sd2 = -1; sd2 <= 1; sd2 += 2) {
+      var tg = new THREE.Group();
+      var body = new THREE.Mesh(new THREE.CylinderGeometry(7, 9, 40, 8), stoneM);
+      body.position.y = 12; tg.add(body);
+      var top = new THREE.Mesh(new THREE.CylinderGeometry(9.5, 8.5, 3.4, 8), stoneD);
+      top.position.y = 33; tg.add(top);
+      var roof = new THREE.Mesh(new THREE.ConeGeometry(10, 12, 8), stoneD);
+      roof.position.y = 40.5; tg.add(roof);
+      var fire = new THREE.Mesh(new THREE.SphereGeometry(1.5, 8, 6), coreM);
+      fire.position.y = 35.5; tg.add(fire);
+      var fh = new THREE.Mesh(new THREE.SphereGeometry(6, 10, 8), haloM(0.22));
+      fh.position.y = 35.5; tg.add(fh);
+      tg.position.set(tp.x + tr2.x * 74 * sd2, -4, tp.z + tr2.z * 74 * sd2);
+      scene.add(tg);
+    }
+  }
+
+  // ---------- Steinrampen ----------
+  var rampIdx = [88, 226, 358, 470];
+  var angle = Math.atan(RAMP_H / RAMP_L);
+  for (var ri = 0; ri < rampIdx.length; ri++) {
+    var idr = rampIdx[ri], pr = TRACK[idr], tnr = TAN[idr], rrr = rightOf(tnr);
+    var offr = (ri % 2 === 0) ? 9 : -9;
+    var cx = pr.x + rrr.x * offr, cz = pr.z + rrr.z * offr;
+    var inner = new THREE.Group();
+    for (var k = 0; k < 6; k++) {
+      var slab = new THREE.Mesh(new THREE.BoxGeometry(RAMP_W * 2, 0.5, 2.3), stoneM);
+      slab.position.set(0, 0, -RAMP_L / 2 + 1.3 + k * 2.5);
+      inner.add(slab);
+    }
+    for (var sr = -1; sr <= 1; sr += 2) {
+      var rail2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, RAMP_L), stoneD);
+      rail2.position.set(RAMP_W * sr, 0.6, 0); inner.add(rail2);
+    }
+    var lip = new THREE.Mesh(new THREE.BoxGeometry(RAMP_W * 2.2, 0.4, 0.8), ironM);
+    lip.position.set(0, 0.4, RAMP_L / 2 - 0.6); inner.add(lip);
+    var tilt = new THREE.Group();
+    tilt.add(inner);
+    inner.rotation.x = -angle;
+    inner.position.y = RAMP_H / 2;
+    tilt.rotation.y = Math.atan2(tnr.x, tnr.z);
+    tilt.position.set(cx, 0, cz);
+    scene.add(tilt);
+    ramps.push({ o: tilt, x: cx, z: cz, yaw: tilt.rotation.y, cd: 0 });
+  }
+
+  // ---------- Glutkristalle statt Grogfaesser ----------
+  var kIdx = [40, 140, 250, 330, 430, 540];
+  for (var gi = 0; gi < kIdx.length; gi++) {
+    var pk = TRACK[kIdx[gi]], rk = rightOf(TAN[kIdx[gi]]);
+    var ok = (gi % 2 === 0) ? 21 : -21;
+    var kx = pk.x + rk.x * ok, kz = pk.z + rk.z * ok;
+    var kg = new THREE.Group();
+    var cry = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), emberM);
+    cry.scale.set(0.8, 1.5, 0.8); kg.add(cry);
+    kg.add(new THREE.Mesh(new THREE.OctahedronGeometry(1.1, 0), coreM));
+    var kh = new THREE.Mesh(new THREE.SphereGeometry(2.6, 10, 8), haloM(0.34));
+    kg.add(kh);
+    kg.position.set(kx, 0, kz);
+    scene.add(kg);
+    grogs.push({ o: kg, x: kx, z: kz, ph: Math.random() * 6.3, gone: 0, halo: kh });
+  }
+
+  // ---------- Magmazacken als Slalom ----------
+  for (var sl = 0; sl < 6; sl++) {
+    var si = (108 + sl * 17) % NS;
+    var ps = TRACK[si], rs = rightOf(TAN[si]);
+    var os = (sl % 2 === 0 ? 1 : -1) * 13.5;
+    var sx = ps.x + rs.x * os, sz = ps.z + rs.z * os;
+    var sg = new THREE.Group();
+    var hh = 12 + Math.random() * 7;
+    var spike = new THREE.Mesh(new THREE.ConeGeometry(3.8, hh, 5, 1), stoneD);
+    spike.position.y = hh / 2 - 2.5;
+    spike.rotation.y = Math.random() * 3;
+    spike.rotation.z = (Math.random() - 0.5) * 0.18;
+    sg.add(spike);
+    var foot = new THREE.Mesh(new THREE.ConeGeometry(4.4, 3.4, 5), emberM);
+    foot.position.y = -1.4; sg.add(foot);
+    var fg2 = new THREE.Mesh(new THREE.SphereGeometry(5.4, 10, 8), haloM(0.13));
+    fg2.position.y = -0.5; sg.add(fg2);
+    sg.position.set(sx, 0, sz);
+    scene.add(sg);
+    rocks.push({ x: sx, z: sz, r: 3.8, o: null });
+    reef.push({ o: sg, x: sx, z: sz });
+  }
+
+  // ---------- Festungstor als Durchfahrt ----------
+  var ai = 384, ap = TRACK[ai], at = TAN[ai], ar = rightOf(at);
+  var ag = new THREE.Group();
+  for (var sp = -1; sp <= 1; sp += 2) {
+    var pil = new THREE.Mesh(new THREE.BoxGeometry(9, 26, 9), stoneM);
+    pil.position.set(sp * 14, 8, 0); ag.add(pil);
+    var cap2 = new THREE.Mesh(new THREE.BoxGeometry(11, 2.6, 11), stoneD);
+    cap2.position.set(sp * 14, 22, 0); ag.add(cap2);
+    var tor = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), coreM);
+    tor.position.set(sp * 9.5, 17, 4.6); ag.add(tor);
+    var toh = new THREE.Mesh(new THREE.SphereGeometry(4.2, 10, 8), haloM(0.26));
+    toh.position.copy(tor.position); ag.add(toh);
+  }
+  var span2 = new THREE.Mesh(new THREE.BoxGeometry(38, 5, 10), stoneM);
+  span2.position.set(0, 25, 0); ag.add(span2);
+  var teeth = 7;
+  for (var tt = 0; tt < teeth; tt++) {
+    var th2 = new THREE.Mesh(new THREE.ConeGeometry(1.3, 4.5, 4), stoneD);
+    th2.position.set(-16 + tt * 5.3, 20.4, 0);
+    th2.rotation.x = Math.PI; ag.add(th2);
+  }
+  ag.position.set(ap.x, 0, ap.z);
+  ag.rotation.y = Math.atan2(at.x, at.z) + Math.PI / 2;
+  scene.add(ag);
+  for (sp = -1; sp <= 1; sp += 2) {
+    rocks.push({ x: ap.x + ar.x * sp * 14, z: ap.z + ar.z * sp * 14, r: 5.0, o: null });
+  }
+  passages.push({
+    x: ap.x, z: ap.z, r: 8.0, cd: 0, name: 'FESTUNGSTOR', o: ag, sink: 0.06,
+    rx: ar.x, rz: ar.z
+  });
+
+  // ---------- Fallen ----------
+  var geysers = [], crushers = [], firebars = [];
+
+  // Feuergeysire: brechen im Takt aus der Lava
+  var gIdx = [58, 172, 268, 392, 496, 566];
+  for (var q = 0; q < gIdx.length; q++) {
+    var pg2 = TRACK[gIdx[q]], rg2 = rightOf(TAN[gIdx[q]]);
+    var og = (q % 3 - 1) * 11;
+    var gx = pg2.x + rg2.x * og, gz = pg2.z + rg2.z * og;
+    var gg = new THREE.Group();
+    var jet = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 3.2, 26, 10, 1, true), fireM);
+    jet.position.y = 13; gg.add(jet);
+    var core = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 1.8, 24, 8, 1, true), coreM);
+    core.position.y = 12; gg.add(core);
+    var vent = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 4.4, 2.2, 8), stoneD);
+    vent.position.y = -0.6; gg.add(vent);
+    gg.position.set(gx, 0, gz);
+    scene.add(gg);
+    geysers.push({
+      o: gg, jet: jet, core: core, x: gx, z: gz,
+      t: Math.random() * 5, per: 4.6 + Math.random() * 2.4, up: 0
+    });
+  }
+
+  // Pressbloecke: heben sich und schlagen auf die Bahn
+  var cIdx = [128, 306, 452];
+  for (var c2 = 0; c2 < cIdx.length; c2++) {
+    var pc = TRACK[cIdx[c2]], rc = rightOf(TAN[cIdx[c2]]);
+    var oc = (c2 % 2 === 0) ? 7 : -7;
+    var cx2 = pc.x + rc.x * oc, cz2 = pc.z + rc.z * oc;
+    var cg = new THREE.Group();
+    var blk = new THREE.Mesh(new THREE.BoxGeometry(13, 11, 13), stoneM);
+    cg.add(blk);
+    var rim2 = new THREE.Mesh(new THREE.BoxGeometry(13.6, 1.6, 13.6), ironM);
+    rim2.position.y = -4.8; cg.add(rim2);
+    for (var ey = -1; ey <= 1; ey += 2) {
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.9, 8, 6), coreM);
+      eye.position.set(ey * 3, 1.4, 6.6); cg.add(eye);
+    }
+    cg.position.set(cx2, 22, cz2);
+    cg.rotation.y = Math.atan2(TAN[cIdx[c2]].x, TAN[cIdx[c2]].z);
+    scene.add(cg);
+    crushers.push({
+      o: cg, x: cx2, z: cz2, t: Math.random() * 4,
+      per: 3.8 + Math.random() * 1.6, y: 22, down: 0
+    });
+  }
+
+  // Feuerbalken: drehen sich um eine Saeule
+  var fIdx = [208, 340, 528];
+  for (var f2 = 0; f2 < fIdx.length; f2++) {
+    var pf = TRACK[fIdx[f2]], rf = rightOf(TAN[fIdx[f2]]);
+    var of2 = (f2 % 2 === 0) ? -12 : 12;
+    var fx = pf.x + rf.x * of2, fz = pf.z + rf.z * of2;
+    var fg3 = new THREE.Group();
+    var pillar = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 3.0, 16, 6), stoneM);
+    pillar.position.y = 4; fg3.add(pillar);
+    var barG = new THREE.Group();
+    var balls = [];
+    for (var b2 = 1; b2 <= 5; b2++) {
+      var ball = new THREE.Mesh(new THREE.SphereGeometry(1.5, 10, 8), fireM);
+      ball.position.set(b2 * 3.4, 0, 0); barG.add(ball);
+      var bh = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), haloM(0.3));
+      bh.position.copy(ball.position); barG.add(bh);
+      balls.push(ball);
+    }
+    barG.position.y = 9.5; fg3.add(barG);
+    fg3.position.set(fx, 0, fz);
+    scene.add(fg3);
+    firebars.push({ o: fg3, bar: barG, x: fx, z: fz, len: 5 * 3.4 + 1.5, sp: (f2 % 2 ? -1 : 1) * (0.9 + f2 * 0.15) });
+  }
+
+  buildDone();
+  WORLDS[1].props = {
+    buoys: buoys, rings: rings, pads: pads, ramps: ramps,
+    grogs: grogs, reef: reef, passages: passages, rocks: rocks
+  };
+  WORLDS[1].haz = { geysers: geysers, crushers: crushers, firebars: firebars };
+})();
+
+// ---------- Fallen bewegen und treffen ----------
+var hazards = {
+  reset: function () {
+    var h = WORLDS[1].haz, i;
+    for (i = 0; i < h.geysers.length; i++) { h.geysers[i].t = Math.random() * 5; h.geysers[i].up = 0; }
+    for (i = 0; i < h.crushers.length; i++) { h.crushers[i].t = Math.random() * 4; h.crushers[i].y = 22; }
+  },
+  hit: function (r, force, line) {
+    if (r.octoCd > 0) return;
+    r.octoCd = 1.6;
+    r.vel.multiplyScalar(force); r.drift = 0; r.combo = 1;
+    if (r.isPlayer) {
+      shake = 1; shock = 0.9; sfx.thud();
+      if (line) say('FESTUNG', line, '#ff9a4a');
+    }
+  },
+  update: function (dt, t) {
+    var h = WORLDS[1].haz, i, k, rc;
+
+    // Geysire
+    for (i = 0; i < h.geysers.length; i++) {
+      var gy = h.geysers[i];
+      gy.t += dt;
+      if (gy.t > gy.per) gy.t -= gy.per;
+      var ph = gy.t / gy.per;
+      // 0.62 bis 1.0: Ausbruch, davor nur Glimmen als Vorwarnung
+      gy.up = ph > 0.62 ? Math.sin((ph - 0.62) / 0.38 * Math.PI) : 0;
+      var ly = waveAt(gy.x, gy.z, t);
+      gy.o.position.y = ly - 1.5;
+      gy.o.visible = true;
+      var sc = 0.05 + gy.up * 1.0;
+      gy.jet.scale.set(0.6 + gy.up * 0.5, sc, 0.6 + gy.up * 0.5);
+      gy.core.scale.set(0.5 + gy.up * 0.6, sc * 0.95, 0.5 + gy.up * 0.6);
+      gy.jet.material.opacity = 0.15 + gy.up * 0.7;
+      if (gy.up > 0.15) {
+        for (k = 0; k < 2; k++) {
+          PS_SPRAY.spawn(gy.x + (Math.random() - 0.5) * 5, ly + Math.random() * 8,
+            gy.z + (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 5,
+            10 + Math.random() * 22, (Math.random() - 0.5) * 5,
+            0.6 + Math.random() * 0.6, [1.0, 0.45, 0.12]);
+        }
+      }
+      if (gy.up > 0.25) {
+        for (k = 0; k < RACERS.length; k++) {
+          rc = RACERS[k];
+          var dx = rc.pos.x - gy.x, dz = rc.pos.z - gy.z;
+          if (dx * dx + dz * dz < 30 && rc.pos.y - waveAt(rc.pos.x, rc.pos.z, t) < 14) {
+            this.hit(rc, 0.42, 'Der Boden spuckt. Nicht stehenbleiben.');
+          }
+        }
+      }
+    }
+
+    // Pressbloecke
+    for (i = 0; i < h.crushers.length; i++) {
+      var cr = h.crushers[i];
+      cr.t += dt;
+      if (cr.t > cr.per) cr.t -= cr.per;
+      var cp = cr.t / cr.per;
+      var ly2 = waveAt(cr.x, cr.z, t);
+      // langsam hoch, dann fallen lassen
+      if (cp < 0.72) cr.y = ly2 + 8 + (1 - cp / 0.72) * 16;
+      else {
+        var f = (cp - 0.72) / 0.28;
+        cr.y = ly2 + 8 - f * f * 14;
+      }
+      cr.o.position.set(cr.x, cr.y, cr.z);
+      cr.down = cr.y < ly2 + 4 ? 1 : 0;
+      if (cr.down) {
+        for (k = 0; k < RACERS.length; k++) {
+          rc = RACERS[k];
+          var ddx = rc.pos.x - cr.x, ddz = rc.pos.z - cr.z;
+          if (Math.abs(ddx) < 8 && Math.abs(ddz) < 8) {
+            this.hit(rc, 0.3, 'Der Block hat ein Gespuer fuer schlechtes Timing.');
+          }
+        }
+        if (cp > 0.72 && cp < 0.80) {
+          for (k = 0; k < 3; k++) {
+            var aa = Math.random() * 6.283;
+            PS_SPRAY.spawn(cr.x + Math.cos(aa) * 7, ly2, cr.z + Math.sin(aa) * 7,
+              Math.cos(aa) * 12, 4 + Math.random() * 8, Math.sin(aa) * 12,
+              0.5 + Math.random() * 0.5, [1.0, 0.5, 0.15]);
+          }
+        }
+      }
+    }
+
+    // Feuerbalken
+    for (i = 0; i < h.firebars.length; i++) {
+      var fb = h.firebars[i];
+      fb.o.position.y = waveAt(fb.x, fb.z, t) - 1.0;
+      fb.bar.rotation.y += fb.sp * dt;
+      var ang = fb.bar.rotation.y;
+      var tipX = fb.x + Math.cos(ang) * fb.len;
+      var tipZ = fb.z - Math.sin(ang) * fb.len;
+      for (k = 0; k < RACERS.length; k++) {
+        rc = RACERS[k];
+        if (rc.air) continue;
+        if (distToSeg(rc.pos.x, rc.pos.z, fb.x, fb.z, tipX, tipZ) < 3.0) {
+          this.hit(rc, 0.45, 'Der Balken dreht sich seit hundert Jahren. Du bist neu.');
+        }
+      }
+    }
+  }
+};
+
+// ---------- Themen und Weltwechsel --------------------------
+var PHASES_KEEP = [
+  { n: 'GLUTHITZE', swell: 1.00, dark: 0.25, rain: 0.10, fog: 0.00190, wind: 0.6, sunY: 0.055, mus: 1 },
+  { n: 'ASCHEREGEN', swell: 1.30, dark: 0.52, rain: 0.45, fog: 0.00250, wind: 2.0, sunY: 0.045, mus: 2 },
+  { n: 'FUNKENFLUG', swell: 1.62, dark: 0.72, rain: 0.75, fog: 0.00300, wind: 3.2, sunY: 0.035, mus: 2 },
+  { n: 'ERUPTION', swell: 2.00, dark: 0.92, rain: 1.00, fog: 0.00340, wind: 4.6, sunY: 0.028, mus: 3 }
+];
+var LINES_KEEP = [
+  '', 'Asche in der Luft. Die Festung wacht auf.',
+  'Funkenflug. Halt den Kopf unten.',
+  'Der Berg spuckt. Jetzt zaehlt nur noch Tempo.'
+];
+
+var THEMES = [
+  {
+    fogA: new THREE.Color(0xe0a878), fogB: new THREE.Color(0x5d6b78),
+    hemiSky: 0xffd8b0, hemiGnd: 0x1a3c58, sunCol: 0xffb469, rimCol: 0x5f8cff,
+    rainCol: 0xc4dcec, mus: 0, eyebrow: 'KORALLENBUCHT &middot; EINE STUNDE VOR SONNENUNTERGANG'
+  },
+  {
+    fogA: new THREE.Color(0x6a2a18), fogB: new THREE.Color(0x2c1410),
+    hemiSky: 0xff9050, hemiGnd: 0x2e1008, sunCol: 0xff7a30, rimCol: 0xff5020,
+    rainCol: 0xffb066, mus: 1, eyebrow: 'SCHATTENFESTE &middot; DER BERG IST WACH'
+  }
+];
+
+function setWorld(i) {
+  worldIdx = i;
+  var w = WORLDS[i], th = THEMES[i], p = w.props;
+  curve = w.t.curve; TRACK = w.t.TRACK; TAN = w.t.TAN; STRAIGHT = w.t.STRAIGHT;
+  TRACK_LEN = w.t.len;
+  buoys = p.buoys; rings = p.rings; pads = p.pads; ramps = p.ramps;
+  grogs = p.grogs; reef = p.reef; passages = p.passages; rocks = p.rocks;
+  WORLDS[0].g.visible = (i === 0);
+  WORLDS[1].g.visible = (i === 1);
+  waterUni.uLava.value = w.lava;
+  skyUni.uLava.value = w.lava;
+  glare.visible = (i === 0);
+  for (var c = 0; c < clouds.length; c++) clouds[c].o.visible = (i === 0);
+  hemi.color.setHex(th.hemiSky); hemi.groundColor.setHex(th.hemiGnd);
+  sunLight.color.setHex(th.sunCol); rim.color.setHex(th.rimCol);
+  FOG_CALM = th.fogA; FOG_STORM = th.fogB;
+  PHASES = (i === 0) ? PHASES_BAY : PHASES_KEEP;
+  WEATHER_LINES = (i === 0) ? LINES_BAY : LINES_KEEP;
+  rain.mat.color.setHex(th.rainCol);
+  sfx.theme(th.mus);
+}
 
 // ---------- DOM ---------------------------------------------
 var $ = function (id) { return document.getElementById(id); };
@@ -3190,7 +3752,9 @@ function applyDiff() {
   AI_BAND = DIFFS[diff].band;
   var b = document.getElementsByClassName('pick');
   for (var i = 0; i < b.length; i++) {
-    b[i].className = 'pick' + (+b[i].getAttribute('data-d') === diff ? ' sel' : '');
+    var d = b[i].getAttribute('data-d');
+    if (d === null) continue;                       // Streckenknoepfe nicht anfassen
+    b[i].className = 'pick' + (+d === diff ? ' sel' : '');
   }
 }
 function drawGoals() {
@@ -3200,13 +3764,28 @@ function drawGoals() {
   }
   $('goals').innerHTML = h;
 }
+function pickTrack(i) {
+  setWorld(i);
+  REC.track = i; saveRec(REC);
+  var b = document.getElementsByClassName('trk');
+  for (var k = 0; k < b.length; k++) {
+    b[k].className = 'pick trk' + (k === i ? ' sel' : '');
+  }
+  document.querySelector('#title .eyebrow').innerHTML = THEMES[i].eyebrow;
+}
 (function () {
   var b = document.getElementsByClassName('pick');
   for (var i = 0; i < b.length; i++) {
-    b[i].addEventListener('click', function () {
-      diff = +this.getAttribute('data-d');
-      REC.diff = diff; saveRec(REC); applyDiff();
-    });
+    if (b[i].getAttribute('data-d') !== null) {
+      b[i].addEventListener('click', function () {
+        diff = +this.getAttribute('data-d');
+        REC.diff = diff; saveRec(REC); applyDiff();
+      });
+    } else {
+      b[i].addEventListener('click', function () {
+        pickTrack(+this.getAttribute('data-t'));
+      });
+    }
   }
   applyDiff(); drawGoals();
 })();
@@ -3320,12 +3899,13 @@ var CAM_NAMES = ['VERFOLGER', 'NAH', 'COCKPIT'];
 var GH_DT = 0.06;
 var ghostMesh = null, ghostRec = null, ghostBest = null, ghostBestTime = 0;
 var ghostCur = [], ghostAcc = 0;
-var TRACK_LEN = curve.getLength();
+var TRACK_LEN = 0;   // von setWorld() gesetzt
 
 function startRace(wantFull) {
   sfx.init();
   if (wantFull && !isFull()) goFull();
   resetRacers();
+  if (worldIdx === 1) hazards.reset();
   weather.reset();
   if (elWeather) elWeather.textContent = PHASES[0].n;
   raceT = 0; cdT = 2.999; state = 'countdown'; shake = 0; shock = 0;
@@ -3851,7 +4431,7 @@ function loop(now) {
 
   animateProps(dt);
   weather.update(dt, T);
-  fauna.update(dt, T);
+  if (worldIdx === 0) fauna.update(dt, T); else hazards.update(dt, T);
   PS_SPRAY.step(dt, 11);
   PS_FOAM.step(dt, 1.6);
   updateCamera(dt);
@@ -3900,6 +4480,8 @@ function loop(now) {
 for (var b = 0; b < 4; b++) RACERS.push(makeRacer(b));
 player = RACERS[0];
 ghostMesh = makeGhost();
+setWorld((REC.track === 1) ? 1 : 0);
+if (REC.track === 1) pickTrack(1);
 resetRacers();
 weather.reset();
 resize();

@@ -33,6 +33,24 @@ schlagen neben der Strecke ein: Wassersäule, Druckwelle, und wer zu nah steht, 
 weggeschoben. Dazu kann eine **Wasserhose** über die Bahn wandern, die alles in ihrer
 Nähe ansaugt. Wer bei schwerer See punktet, bekommt einen **Sturmbonus** bis ×1,6.
 
+## Zwei Strecken
+
+**Korallenbucht** — offene See bei Sonnenuntergang, Wetterumschwung bis zum Gewitter,
+Blauwal, Riesenkrake, Geisterschiff, Delfine.
+
+**Schattenfeste** — engerer Kurs auf einem Lavasee in einer Festungsruine. Statt Dünung
+wogt geschmolzenes Gestein, die Kruste reißt an den Flanken auf. Wetter läuft von
+Gluthitze über Ascheregen bis zur Eruption. Hindernisse:
+
+- **Feuergeysire** brechen im Takt aus der Lava — das Glimmen vorher ist die Vorwarnung.
+- **Pressblöcke** heben sich langsam und lassen sich dann fallen.
+- **Feuerbalken** drehen sich seit hundert Jahren um ihre Säule.
+- **Magmazacken** im Slalom, **Festungstor** als Durchfahrt, **Glutkristalle** statt Grog.
+
+Beide Strecken teilen sich Physik, Wellenformel und Hindernislogik — die Lava ist
+dieselbe verschobene Oberfläche, nur anders eingefärbt. Auch der Soundtrack wechselt:
+Karibik-Groove in der Bucht, d-Moll mit Blech und Toms in der Festung.
+
 ## Steuerung
 
 | Taste | Wirkung |
